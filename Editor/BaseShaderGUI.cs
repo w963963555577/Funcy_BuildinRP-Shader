@@ -78,7 +78,7 @@ namespace UnityEditor
         MaterialProperty bumpScale = null;
         MaterialProperty bumpMap = null;
         MaterialProperty occlusionStrength = null;
-        MaterialProperty occlusionMap = null;
+        //MaterialProperty occlusionMap = null;
         MaterialProperty heigtMapScale = null;
         MaterialProperty heightMap = null;
         MaterialProperty emissionColorForRendering = null;
@@ -120,7 +120,7 @@ namespace UnityEditor
             heigtMapScale = FindProperty("_Parallax", props);
             heightMap = FindProperty("_ParallaxMap", props);
             occlusionStrength = FindProperty("_OcclusionStrength", props);
-            occlusionMap = FindProperty("_OcclusionMap", props);
+            //occlusionMap = FindProperty("_OcclusionMap", props);
             emissionColorForRendering = FindProperty("_EmissionColor", props);
             emissionMap = FindProperty("_EmissionMap", props);
             detailMask = FindProperty("_DetailMask", props);
@@ -235,7 +235,8 @@ namespace UnityEditor
                     DoSpecularMetallicArea();
                     DoNormalArea();
                     m_MaterialEditor.TexturePropertySingleLine(Styles.heightMapText, heightMap, heightMap.textureValue != null ? heigtMapScale : null);
-                    m_MaterialEditor.TexturePropertySingleLine(Styles.occlusionText, occlusionMap, occlusionMap.textureValue != null ? occlusionStrength : null);
+                    //m_MaterialEditor.TexturePropertySingleLine(Styles.occlusionText, occlusionMap, occlusionMap.textureValue != null ? occlusionStrength : null);
+                    m_MaterialEditor.ShaderProperty(occlusionStrength, occlusionStrength.displayName);
                     m_MaterialEditor.TexturePropertySingleLine(Styles.detailMaskText, detailMask);
                     DoEmissionArea(material);
                     EditorGUI.BeginChangeCheck();
