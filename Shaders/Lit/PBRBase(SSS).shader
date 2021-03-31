@@ -397,7 +397,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 
                 half2 occAndDiscoloration = tex2D(_OcclusionMap, i.tex.xy).gb;
                 
-                half occlusion = occAndDiscoloration.x;
+                half occlusion = LerpOneTo(occAndDiscoloration.x, _OcclusionStrength);
                 UnityGI gi = FragmentGI(s, occlusion, i.ambientOrLightmapUV, atten, mainLight);
                 
                 
