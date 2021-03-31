@@ -6,33 +6,33 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
     {
         _Color ("Color", Color) = (1, 1, 1, 1)
         _MainTex ("Albedo", 2D) = "white" { }
-
+        
         _Cutoff ("Alpha Cutoff", Range(0.0, 1.0)) = 0.5
-
+        
         _Glossiness ("Smoothness", Range(0.0, 1.0)) = 0.5
         _GlossMapScale ("Smoothness Scale", Range(0.0, 1.0)) = 1.0
         [Enum(Metallic Alpha, 0, Albedo Alpha, 1)] _SmoothnessTextureChannel ("Smoothness texture channel", Float) = 0
-
+        
         [Gamma] _Metallic ("Metallic", Range(0.0, 1.0)) = 0.0
         _MetallicGlossMap ("Metallic", 2D) = "white" { }
-
+        
         [ToggleOff] _SpecularHighlights ("Specular Highlights", Float) = 1.0
         [ToggleOff] _GlossyReflections ("Glossy Reflections", Float) = 1.0
-
+        
         _BumpScale ("Scale", Float) = 1.0
         [Normal] _BumpMap ("Normal Map", 2D) = "bump" { }
-
+        
         _Parallax ("Height Scale", Range(0.005, 0.08)) = 0.02
         _ParallaxMap ("Height Map", 2D) = "black" { }
-
+        
         _OcclusionStrength ("Strength", Range(0.0, 1.0)) = 1.0
         _OcclusionMap ("Occlusion", 2D) = "white" { }
-
+        
         _EmissionColor ("Color", Color) = (0, 0, 0)
         _EmissionMap ("Emission", 2D) = "white" { }
-
+        
         _DetailMask ("Detail Mask", 2D) = "white" { }
-
+        
         _DetailAlbedoMap ("Detail Albedo x2", 2D) = "grey" { }
         _DetailNormalMapScale ("Scale", Float) = 1.0
         [Normal] _DetailNormalMap ("Normal Map", 2D) = "bump" { }
@@ -45,16 +45,31 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
         [HDR]_RimLightColor ("Color", Color) = (.7, .85, 1.0)
         _RimLightSoftness ("Softness", Range(0.0, 1.0)) = 0.6
         _MaxHDR ("Max HDR", Range(0.0, 10.0)) = 10.0
-
+        
+        // _DiscolorationSystem
+        [Toggle(_DiscolorationSystem)] _DiscolorationSystem ("Enable Discoloration System", float) = 0
+        _DiscolorationColorCount ("Use Color Count", Range(1, 6)) = 2
+        [HDR]_DiscolorationColor_0 ("DiscolorationColor_0", Color) = (1, 1, 1, 1)
+        [HDR]_DiscolorationColor_1 ("DiscolorationColor_1", Color) = (1, 1, 1, 1)
+        [HDR]_DiscolorationColor_2 ("DiscolorationColor_2", Color) = (1, 1, 1, 1)
+        [HDR]_DiscolorationColor_3 ("DiscolorationColor_3", Color) = (1, 1, 1, 1)
+        [HDR]_DiscolorationColor_4 ("DiscolorationColor_4", Color) = (1, 1, 1, 1)
+        [HDR]_DiscolorationColor_5 ("DiscolorationColor_5", Color) = (1, 1, 1, 1)
+        
+        
+        //Effective Disslove
+        [HDR]_EffectiveColor ("_EffectiveColor", Color) = (1.0, 1.0, 1.0, 1.0)
+        _EffectiveMap ("Effective Map", 2D) = "white" { }
+        
         [Enum(UV0, 0, UV1, 1)] _UVSec ("UV Set for secondary textures", Float) = 0
         
         // Blending state
         [HideInInspector] _Mode ("__mode", Float) = 0.0
-        [HideInInspector] _SrcBlend ("__src", Float) = 1.0
-        [HideInInspector] _DstBlend ("__dst", Float) = 0.0
-        [HideInInspector] _ZWrite ("__zw", Float) = 1.0
+        [Enum(UnityEngine.Rendering.BlendMode)] _SrcBlend ("Src", Float) = 1.0
+        [Enum(UnityEngine.Rendering.BlendMode)] _DstBlend ("Dst", Float) = 0.0
+        [Enum(Off, 0, On, 1)]  _ZWrite ("ZWrite", Float) = 1.0
     }
-
+    
     CGINCLUDE
     #define UNITY_SETUP_BRDF_INPUT MetallicSetup
     ENDCG
@@ -63,24 +78,24 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
     {
         Tags { "RenderType" = "Opaque" "PerformanceChecks" = "False" }
         LOD 300
-
-
+        
+        
         // ------------------------------------------------------------------
         //  Base forward pass (directional light, emission, lightmaps, ...)
         Pass
         {
             Name "FORWARD"
             Tags { "LightMode" = "ForwardBase" }
-
+            
             Blend [_SrcBlend] [_DstBlend]
             ZWrite [_ZWrite]
             
             CGPROGRAM
             
             #pragma target 3.0
-
+            
             // -------------------------------------
-
+            
             #pragma shader_feature_local _NORMALMAP
             #pragma shader_feature_local _ _ALPHATEST_ON _ALPHABLEND_ON _ALPHAPREMULTIPLY_ON
             #pragma shader_feature _EMISSION
@@ -90,28 +105,41 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             #pragma shader_feature_local _SPECULARHIGHLIGHTS_OFF
             #pragma shader_feature_local _GLOSSYREFLECTIONS_OFF
             #pragma shader_feature_local _PARALLAXMAP
-
+            
             #pragma multi_compile_fwdbase
             #pragma multi_compile_fog
             #pragma multi_compile_instancing
+            
+            #pragma multi_compile _ _DiscolorationSystem
             // Uncomment the following line to enable dithering LOD crossfade. Note: there are more in the file to uncomment for other passes.
             //#pragma multi_compile _ LOD_FADE_CROSSFADE
-
+            
             #pragma vertex vertBase
             #pragma fragment fragBase
-
+            
             #include "../../ShaderLibrary/UnityStandardConfig.cginc"
             #include "../../ShaderLibrary/UnityStandardCore.cginc"
-
+            
             sampler2D _SubsurfaceMap;
-
+            sampler2D _EffectiveMap;
+            
             half4 _SubsurfaceColor;
             half _SubsurfaceScattering;
             half _SubsurfaceRadius;
             half4 _RimLightColor;
             half _RimLightSoftness;
             half _MaxHDR;
-
+            
+            //Discoloration System
+            float4 _DiscolorationColor_0;
+            float4 _DiscolorationColor_1;
+            float4 _DiscolorationColor_2;
+            float4 _DiscolorationColor_3;
+            float4 _DiscolorationColor_4;
+            float4 _DiscolorationColor_5;
+            
+            half4 _EffectiveColor;
+            
             struct VertexOutput
             {
                 UNITY_POSITION(pos);
@@ -120,16 +148,16 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 float4 tangentToWorldAndPackedData[3]: TEXCOORD2;    // [3x3:tangentToWorld | 1x3:viewDirForParallax or worldPos]
                 half4 ambientOrLightmapUV: TEXCOORD5;    // SH or Lightmap UV
                 UNITY_LIGHTING_COORDS(6, 7)
-
+                
                 // next ones would not fit into SM2.0 limits, but they are always for SM3.0+
                 #if UNITY_REQUIRE_FRAG_WORLDPOS && !UNITY_PACK_WORLDPOS_WITH_TANGENT
                     float3 posWorld: TEXCOORD8;
                 #endif
-
+                
                 UNITY_VERTEX_INPUT_INSTANCE_ID
                 UNITY_VERTEX_OUTPUT_STEREO
             };
-
+            
             VertexOutput vertBase(VertexInput v)
             {
                 UNITY_SETUP_INSTANCE_ID(v);
@@ -137,7 +165,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 UNITY_INITIALIZE_OUTPUT(VertexOutput, o);
                 UNITY_TRANSFER_INSTANCE_ID(v, o);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
-
+                
                 float4 posWorld = mul(unity_ObjectToWorld, v.vertex);
                 #if UNITY_REQUIRE_FRAG_WORLDPOS
                     #if UNITY_PACK_WORLDPOS_WITH_TANGENT
@@ -149,13 +177,13 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                     #endif
                 #endif
                 o.pos = UnityObjectToClipPos(v.vertex);
-
+                
                 o.tex = TexCoords(v);
                 o.eyeVec.xyz = NormalizePerVertexNormal(posWorld.xyz - _WorldSpaceCameraPos);
                 float3 normalWorld = UnityObjectToWorldNormal(v.normal);
                 #ifdef _TANGENT_TO_WORLD
                     float4 tangentWorld = float4(UnityObjectToWorldDir(v.tangent.xyz), v.tangent.w);
-
+                    
                     float3x3 tangentToWorld = CreateTangentToWorldPerVertex(normalWorld, tangentWorld.xyz, tangentWorld.w);
                     o.tangentToWorldAndPackedData[0].xyz = tangentToWorld[0];
                     o.tangentToWorldAndPackedData[1].xyz = tangentToWorld[1];
@@ -165,12 +193,12 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                     o.tangentToWorldAndPackedData[1].xyz = 0;
                     o.tangentToWorldAndPackedData[2].xyz = normalWorld;
                 #endif
-
+                
                 //We need this for shadow receving
                 UNITY_TRANSFER_LIGHTING(o, v.uv1);
-
+                
                 o.ambientOrLightmapUV = VertexGIForward(v, posWorld, normalWorld);
-
+                
                 #ifdef _PARALLAXMAP
                     TANGENT_SPACE_ROTATION;
                     half3 viewDirForParallax = mul(rotation, ObjSpaceViewDir(v.vertex));
@@ -178,11 +206,11 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                     o.tangentToWorldAndPackedData[1].w = viewDirForParallax.y;
                     o.tangentToWorldAndPackedData[2].w = viewDirForParallax.z;
                 #endif
-
+                
                 UNITY_TRANSFER_FOG_COMBINED_WITH_EYE_VEC(o, o.pos);
                 return o;
             }
-
+            
             // Calculates the subsurface light radiating out from the current fragment. This is a simple approximation using wrapped lighting.
             // Note: This does not use distance attenuation, as it is intented to be used with a sun light.
             // Note: This does not subtract out cast shadows (light.shadowAttenuation), as it is intended to be used on non-shadowed objects. (for now)
@@ -214,7 +242,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             {
                 float perceptualRoughness = 1.0 - smoothness;
                 float3 halfDir = Unity_SafeNormalize(float3(light.dir) + viewDir);
-
+                
                 // NdotV should not be negative for visible pixels, but it can happen due to perspective projection and normal mapping
                 // In this case normal should be modified to become valid (i.e facing camera) and not cause weird artifacts.
                 // but this operation adds few ALU and users may not want it. Alternative is to simply take the abs of NdotV (less correct but works too).
@@ -222,28 +250,28 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 // This correction is interesting for GGX with SmithJoint visibility function because artifacts are more visible in this case due to highlight edge of rough surface
                 // Edit: Disable this code by default for now as it is not compatible with two sided lighting used in SpeedTree.
                 #define UNITY_HANDLE_CORRECTLY_NEGATIVE_NDOTV 0
-
+                
                 #if UNITY_HANDLE_CORRECTLY_NEGATIVE_NDOTV
                     // The amount we shift the normal toward the view vector is defined by the dot product.
                     half shiftAmount = dot(normal, viewDir);
                     normal = shiftAmount < 0.0f ? normal + viewDir * (-shiftAmount + 1e-5f): normal;
                     // A re-normalization should be applied here but as the shift is small we don't do it to save ALU.
                     //normal = normalize(normal);
-
+                    
                     float nv = saturate(dot(normal, viewDir)); // TODO: this saturate should no be necessary here
                 #else
                     half nv = abs(dot(normal, viewDir));    // This abs allow to limit artifact
                 #endif
-
+                
                 float nl = saturate(dot(normal, light.dir));
                 float nh = saturate(dot(normal, halfDir));
-
+                
                 half lv = saturate(dot(light.dir, viewDir));
                 half lh = saturate(dot(light.dir, halfDir));
-
+                
                 // Diffuse term
                 half diffuseTerm = DisneyDiffuse(nv, nl, lh, perceptualRoughness) * nl;
-
+                
                 // Specular term
                 // HACK: theoretically we should divide diffuseTerm by Pi and not multiply specularTerm!
                 // BUT 1) that will make shader look significantly darker than Legacy ones
@@ -259,19 +287,19 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                     half V = SmithBeckmannVisibilityTerm(nl, nv, roughness);
                     half D = NDFBlinnPhongNormalizedTerm(nh, PerceptualRoughnessToSpecPower(perceptualRoughness));
                 #endif
-
+                
                 float specularTerm = V * D * UNITY_PI; // Torrance-Sparrow model, Fresnel is applied later
-
+                
                 #ifdef UNITY_COLORSPACE_GAMMA
                     specularTerm = sqrt(max(1e-4h, specularTerm));
                 #endif
-
+                
                 // specularTerm * nl can be NaN on Metal in some cases, use max() to make sure it's a sane value
                 specularTerm = max(0, specularTerm * nl);
                 #if defined(_SPECULARHIGHLIGHTS_OFF)
                     specularTerm = 0.0;
                 #endif
-
+                
                 // surfaceReduction = Int D(NdotH) * NdotH * Id(NdotL>0) dH = 1/(roughness^2+1)
                 half surfaceReduction;
                 #ifdef UNITY_COLORSPACE_GAMMA
@@ -279,10 +307,10 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 #else
                     surfaceReduction = 1.0 / (roughness * roughness + 1.0);           // fade \in [0.5;1]
                 #endif
-
+                
                 // To provide true Lambert lighting, we need to be able to kill specular completely.
                 specularTerm *= any(specColor) ? 1.0: 0.0;
-
+                
                 half grazingTerm = saturate(smoothness + (1 - oneMinusReflectivity));
                 half3 c1 = (gi.diffuse + light.color * diffuseTerm);
                 half3 c2 = specularTerm * light.color * FresnelTerm(specColor, lh);
@@ -296,7 +324,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 
                 color += lerp(mainLightContribution, subsurfaceContribution, _SubsurfaceScattering * (1.0 - metallic));
                 color += emission;
-
+                
                 
                 half fresnel = smoothstep(_RimLightSoftness, 1.0, 1.0 - saturate(dot(normal, viewDir)));
                 half3 rimLighting = gi.diffuse * Ndot * fresnel * 1.0 * _RimLightColor;
@@ -306,28 +334,107 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 color.rgb = clamp(color, 0.0.xxxx, (max(gi.diffuse, GI)) * _MaxHDR);
                 return half4(color, 1.0);
             }
-
+            #if _DiscolorationSystem
+                half3 RGB2HSV(half3 c)
+                {
+                    float4 K = float4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+                    float4 p = lerp(float4(c.bg, K.wz), float4(c.gb, K.xy), step(c.b, c.g));
+                    float4 q = lerp(float4(p.xyw, c.r), float4(c.r, p.yzx), step(p.x, c.r));
+                    
+                    float d = q.x - min(q.w, q.y);
+                    float e = 1.0e-10;
+                    return float3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+                }
+                
+                half3 HSV2RGB(half3 c)
+                {
+                    float4 K = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+                    float3 p = abs(frac(c.xxx + K.xyz) * 6.0 - K.www);
+                    return c.z * lerp(K.xxx, saturate(p - K.xxx), c.y);
+                }
+                
+                void Step6Color(half gray, out float4 color, out float blackArea, out float skinArea)
+                {
+                    float gray_oneminus = (1.0 - gray);
+                    
+                    float grayArea_5 = saturate((smoothstep(0.90, 1.00, gray) * 2.0));
+                    float grayArea_4 = saturate((smoothstep(0.70, 0.80, gray) * 2.0));
+                    float grayArea_3 = saturate((smoothstep(0.60, 0.70, gray) * 2.0));
+                    float grayArea_2 = saturate((smoothstep(0.45, 0.60, gray) * 2.0));
+                    float grayArea_1 = saturate((smoothstep(0.35, 0.45, gray) * 2.0));
+                    float grayArea_0 = saturate((smoothstep(0.95, 1.00, gray_oneminus) * 2.0));
+                    
+                    float fillArea_5 = grayArea_5;
+                    float fillArea_4 = grayArea_4 - grayArea_5;
+                    float fillArea_3 = grayArea_3 - grayArea_4;
+                    float fillArea_2 = grayArea_2 - grayArea_3;
+                    float fillArea_1 = grayArea_1 - grayArea_2;
+                    float fillArea_0 = grayArea_0;
+                    
+                    blackArea = fillArea_0;
+                    skinArea = fillArea_1;
+                    
+                    color = _DiscolorationColor_5 * fillArea_5 + _DiscolorationColor_4 * fillArea_4 +
+                    _DiscolorationColor_3 * fillArea_3 + _DiscolorationColor_2 * fillArea_2 +
+                    _DiscolorationColor_1 * fillArea_1 + _DiscolorationColor_0 * fillArea_0
+                    ;
+                    
+                    half hdr = max(max(color.r, color.g), color.b) ;
+                    color.a = hdr - 1.0;
+                }
+            #endif
             half4 fragBase(VertexOutput i): SV_Target
             {
                 UNITY_APPLY_DITHER_CROSSFADE(i.pos.xy);
-
+                
                 FRAGMENT_SETUP(s)
-
+                
                 UNITY_SETUP_INSTANCE_ID(i);
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
-
+                
                 UnityLight mainLight = MainLight();
                 UNITY_LIGHT_ATTENUATION(atten, i, s.posWorld);
-
-                half occlusion = Occlusion(i.tex.xy);
+                
+                half2 occAndDiscoloration = tex2D(_OcclusionMap, i.tex.xy).gb;
+                
+                half occlusion = occAndDiscoloration.x;
                 UnityGI gi = FragmentGI(s, occlusion, i.ambientOrLightmapUV, atten, mainLight);
-
+                
+                
+                #if _DiscolorationSystem
+                    half4 step_var ;
+                    half blackArea;
+                    half skinArea;
+                    half eyeArea;
+                    half2 eyeAreaReplace = 0.0;
+                    half2 browReplace = 0.0;
+                    half2 mouthReplace = 0.0;
+                    
+                    Step6Color(occAndDiscoloration.y, step_var, blackArea, skinArea);
+                    
+                    s.diffColor.rgb *= step_var.rgb;
+                #endif
+                
                 half3 sssColor = tex2D(_SubsurfaceMap, i.tex.xy).rgb * _SubsurfaceColor.rgb;
-                half4 c = BuildinFragmentPBR(s.diffColor, s.specColor, s.oneMinusReflectivity, s.metallic, s.smoothness, s.normalWorld, -s.eyeVec, gi.light, gi.indirect, sssColor, Emission(i.tex.xy));
-
+                half3 emission = Emission(i.tex.xy);
+                
+                #if _DiscolorationSystem
+                    sssColor.rgb *= step_var.rgb;
+                    emission.rgb *= step_var.rgb;
+                #endif
+                
+                half4 c = BuildinFragmentPBR(s.diffColor, s.specColor, s.oneMinusReflectivity, s.metallic, s.smoothness, s.normalWorld, -s.eyeVec, gi.light, gi.indirect, sssColor, emission);
+                
                 UNITY_EXTRACT_FOG_FROM_EYE_VEC(i);
                 UNITY_APPLY_FOG(_unity_fogCoord, c.rgb);
-                return OutputForward(c, s.alpha);
+                
+                half4 effectiveMask = tex2D(_EffectiveMap, i.tex.xy * 0.5);
+                half4 effectiveDisslive = _EffectiveColor;
+                
+                half alphaMinus = 1.0 - _EffectiveColor.a;
+                effectiveDisslive.a = smoothstep(alphaMinus - 0.1, alphaMinus + 0.1, (1.0 - effectiveMask.r + 0.1 * (_EffectiveColor.a - 0.5) * 2.0));
+                c.rgb *= effectiveDisslive.rgb;
+                return OutputForward(c , s.alpha * effectiveDisslive.a);
             }
             
             ENDCG
@@ -351,9 +458,9 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             CGPROGRAM
             
             #pragma target 3.0
-
+            
             // -------------------------------------
-
+            
             #pragma shader_feature_local _NORMALMAP
             #pragma shader_feature_local _ _ALPHATEST_ON _ALPHABLEND_ON _ALPHAPREMULTIPLY_ON
             #pragma shader_feature_local _METALLICGLOSSMAP
@@ -361,12 +468,14 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             #pragma shader_feature_local _SPECULARHIGHLIGHTS_OFF
             #pragma shader_feature_local _DETAIL_MULX2
             #pragma shader_feature_local _PARALLAXMAP
-
+            
             #pragma multi_compile_fwdadd_fullshadows
             #pragma multi_compile_fog
+            
+            #pragma multi_compile _ _DiscolorationSystem
             // Uncomment the following line to enable dithering LOD crossfade. Note: there are more in the file to uncomment for other passes.
             //#pragma multi_compile _ LOD_FADE_CROSSFADE
-
+            
             #pragma vertex vertAdd
             #pragma fragment fragAdd
             
@@ -374,14 +483,25 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             #include "../../ShaderLibrary/UnityStandardCore.cginc"
             
             sampler2D _SubsurfaceMap;
-
+            sampler2D _EffectiveMap;
+            
             half4 _SubsurfaceColor;
             half _SubsurfaceScattering;
             half _SubsurfaceRadius;
             half4 _RimLightColor;
             half _RimLightSoftness;
             half _MaxHDR;
-
+            
+            //Discoloration System
+            float4 _DiscolorationColor_0;
+            float4 _DiscolorationColor_1;
+            float4 _DiscolorationColor_2;
+            float4 _DiscolorationColor_3;
+            float4 _DiscolorationColor_4;
+            float4 _DiscolorationColor_5;
+            
+            half4 _EffectiveColor;
+            
             struct VertexOutput
             {
                 UNITY_POSITION(pos);
@@ -390,12 +510,12 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 float4 tangentToWorldAndLightDir[3]: TEXCOORD2;    // [3x3:tangentToWorld | 1x3:lightDir]
                 float3 posWorld: TEXCOORD5;
                 UNITY_LIGHTING_COORDS(6, 7)
-
+                
                 // next ones would not fit into SM2.0 limits, but they are always for SM3.0+
                 #if defined(_PARALLAXMAP)
                     half3 viewDirForParallax: TEXCOORD8;
                 #endif
-
+                
                 UNITY_VERTEX_OUTPUT_STEREO
             };
             VertexOutput vertAdd(VertexInput v)
@@ -404,17 +524,17 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 VertexOutput o;
                 UNITY_INITIALIZE_OUTPUT(VertexOutput, o);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
-
+                
                 float4 posWorld = mul(unity_ObjectToWorld, v.vertex);
                 o.pos = UnityObjectToClipPos(v.vertex);
-
+                
                 o.tex = TexCoords(v);
                 o.eyeVec.xyz = NormalizePerVertexNormal(posWorld.xyz - _WorldSpaceCameraPos);
                 o.posWorld = posWorld.xyz;
                 float3 normalWorld = UnityObjectToWorldNormal(v.normal);
                 #ifdef _TANGENT_TO_WORLD
                     float4 tangentWorld = float4(UnityObjectToWorldDir(v.tangent.xyz), v.tangent.w);
-
+                    
                     float3x3 tangentToWorld = CreateTangentToWorldPerVertex(normalWorld, tangentWorld.xyz, tangentWorld.w);
                     o.tangentToWorldAndLightDir[0].xyz = tangentToWorld[0];
                     o.tangentToWorldAndLightDir[1].xyz = tangentToWorld[1];
@@ -426,7 +546,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 #endif
                 //We need this for shadow receiving and lighting
                 UNITY_TRANSFER_LIGHTING(o, v.uv1);
-
+                
                 float3 lightDir = _WorldSpaceLightPos0.xyz - posWorld.xyz * _WorldSpaceLightPos0.w;
                 #ifndef USING_DIRECTIONAL_LIGHT
                     lightDir = NormalizePerVertexNormal(lightDir);
@@ -434,17 +554,17 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 o.tangentToWorldAndLightDir[0].w = lightDir.x;
                 o.tangentToWorldAndLightDir[1].w = lightDir.y;
                 o.tangentToWorldAndLightDir[2].w = lightDir.z;
-
+                
                 #ifdef _PARALLAXMAP
                     TANGENT_SPACE_ROTATION;
                     o.viewDirForParallax = mul(rotation, ObjSpaceViewDir(v.vertex));
                 #endif
-
+                
                 UNITY_TRANSFER_FOG_COMBINED_WITH_EYE_VEC(o, o.pos);
                 return o;
             }
-
-
+            
+            
             // Calculates the subsurface light radiating out from the current fragment. This is a simple approximation using wrapped lighting.
             // Note: This does not use distance attenuation, as it is intented to be used with a sun light.
             // Note: This does not subtract out cast shadows (light.shadowAttenuation), as it is intended to be used on non-shadowed objects. (for now)
@@ -476,7 +596,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             {
                 float perceptualRoughness = 1.0 - smoothness;
                 float3 halfDir = Unity_SafeNormalize(float3(light.dir) + viewDir);
-
+                
                 // NdotV should not be negative for visible pixels, but it can happen due to perspective projection and normal mapping
                 // In this case normal should be modified to become valid (i.e facing camera) and not cause weird artifacts.
                 // but this operation adds few ALU and users may not want it. Alternative is to simply take the abs of NdotV (less correct but works too).
@@ -484,28 +604,28 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 // This correction is interesting for GGX with SmithJoint visibility function because artifacts are more visible in this case due to highlight edge of rough surface
                 // Edit: Disable this code by default for now as it is not compatible with two sided lighting used in SpeedTree.
                 #define UNITY_HANDLE_CORRECTLY_NEGATIVE_NDOTV 0
-
+                
                 #if UNITY_HANDLE_CORRECTLY_NEGATIVE_NDOTV
                     // The amount we shift the normal toward the view vector is defined by the dot product.
                     half shiftAmount = dot(normal, viewDir);
                     normal = shiftAmount < 0.0f ? normal + viewDir * (-shiftAmount + 1e-5f): normal;
                     // A re-normalization should be applied here but as the shift is small we don't do it to save ALU.
                     //normal = normalize(normal);
-
+                    
                     float nv = saturate(dot(normal, viewDir)); // TODO: this saturate should no be necessary here
                 #else
                     half nv = abs(dot(normal, viewDir));    // This abs allow to limit artifact
                 #endif
-
+                
                 float nl = saturate(dot(normal, light.dir));
                 float nh = saturate(dot(normal, halfDir));
-
+                
                 half lv = saturate(dot(light.dir, viewDir));
                 half lh = saturate(dot(light.dir, halfDir));
-
+                
                 // Diffuse term
                 half diffuseTerm = DisneyDiffuse(nv, nl, lh, perceptualRoughness) * nl;
-
+                
                 // Specular term
                 // HACK: theoretically we should divide diffuseTerm by Pi and not multiply specularTerm!
                 // BUT 1) that will make shader look significantly darker than Legacy ones
@@ -521,19 +641,19 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                     half V = SmithBeckmannVisibilityTerm(nl, nv, roughness);
                     half D = NDFBlinnPhongNormalizedTerm(nh, PerceptualRoughnessToSpecPower(perceptualRoughness));
                 #endif
-
+                
                 float specularTerm = V * D * UNITY_PI; // Torrance-Sparrow model, Fresnel is applied later
-
+                
                 #ifdef UNITY_COLORSPACE_GAMMA
                     specularTerm = sqrt(max(1e-4h, specularTerm));
                 #endif
-
+                
                 // specularTerm * nl can be NaN on Metal in some cases, use max() to make sure it's a sane value
                 specularTerm = max(0, specularTerm * nl);
                 #if defined(_SPECULARHIGHLIGHTS_OFF)
                     specularTerm = 0.0;
                 #endif
-
+                
                 // surfaceReduction = Int D(NdotH) * NdotH * Id(NdotL>0) dH = 1/(roughness^2+1)
                 half surfaceReduction;
                 #ifdef UNITY_COLORSPACE_GAMMA
@@ -541,10 +661,10 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 #else
                     surfaceReduction = 1.0 / (roughness * roughness + 1.0);           // fade \in [0.5;1]
                 #endif
-
+                
                 // To provide true Lambert lighting, we need to be able to kill specular completely.
                 specularTerm *= any(specColor) ? 1.0: 0.0;
-
+                
                 half grazingTerm = saturate(smoothness + (1 - oneMinusReflectivity));
                 half3 c1 = (gi.diffuse + light.color * diffuseTerm);
                 half3 c2 = specularTerm * light.color * FresnelTerm(specColor, lh);
@@ -558,28 +678,105 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 
                 color += lerp(mainLightContribution, subsurfaceContribution, _SubsurfaceScattering * (1.0 - metallic));
                 
-
+                
                 return half4(color, 1);
             }
-
+            #if _DiscolorationSystem
+                half3 RGB2HSV(half3 c)
+                {
+                    float4 K = float4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+                    float4 p = lerp(float4(c.bg, K.wz), float4(c.gb, K.xy), step(c.b, c.g));
+                    float4 q = lerp(float4(p.xyw, c.r), float4(c.r, p.yzx), step(p.x, c.r));
+                    
+                    float d = q.x - min(q.w, q.y);
+                    float e = 1.0e-10;
+                    return float3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+                }
+                
+                half3 HSV2RGB(half3 c)
+                {
+                    float4 K = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+                    float3 p = abs(frac(c.xxx + K.xyz) * 6.0 - K.www);
+                    return c.z * lerp(K.xxx, saturate(p - K.xxx), c.y);
+                }
+                
+                void Step6Color(half gray, out float4 color, out float blackArea, out float skinArea)
+                {
+                    float gray_oneminus = (1.0 - gray);
+                    
+                    float grayArea_5 = saturate((smoothstep(0.90, 1.00, gray) * 2.0));
+                    float grayArea_4 = saturate((smoothstep(0.70, 0.80, gray) * 2.0));
+                    float grayArea_3 = saturate((smoothstep(0.60, 0.70, gray) * 2.0));
+                    float grayArea_2 = saturate((smoothstep(0.45, 0.60, gray) * 2.0));
+                    float grayArea_1 = saturate((smoothstep(0.35, 0.45, gray) * 2.0));
+                    float grayArea_0 = saturate((smoothstep(0.95, 1.00, gray_oneminus) * 2.0));
+                    
+                    float fillArea_5 = grayArea_5;
+                    float fillArea_4 = grayArea_4 - grayArea_5;
+                    float fillArea_3 = grayArea_3 - grayArea_4;
+                    float fillArea_2 = grayArea_2 - grayArea_3;
+                    float fillArea_1 = grayArea_1 - grayArea_2;
+                    float fillArea_0 = grayArea_0;
+                    
+                    blackArea = fillArea_0;
+                    skinArea = fillArea_1;
+                    
+                    color = _DiscolorationColor_5 * fillArea_5 + _DiscolorationColor_4 * fillArea_4 +
+                    _DiscolorationColor_3 * fillArea_3 + _DiscolorationColor_2 * fillArea_2 +
+                    _DiscolorationColor_1 * fillArea_1 + _DiscolorationColor_0 * fillArea_0
+                    ;
+                    
+                    half hdr = max(max(color.r, color.g), color.b) ;
+                    color.a = hdr - 1.0;
+                }
+            #endif
             half4 fragAdd(VertexOutput i): SV_Target
             {
                 UNITY_APPLY_DITHER_CROSSFADE(i.pos.xy);
-
+                
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
-
+                
                 FRAGMENT_SETUP_FWDADD(s)
-
+                
                 UNITY_LIGHT_ATTENUATION(atten, i, s.posWorld)
                 UnityLight light = AdditiveLight(IN_LIGHTDIR_FWDADD(i), atten);
                 UnityIndirect noIndirect = ZeroIndirect();
-
+                
+                half2 occAndDiscoloration = tex2D(_OcclusionMap, i.tex.xy).gb;
+                
+                #if _DiscolorationSystem
+                    half4 step_var ;
+                    half blackArea;
+                    half skinArea;
+                    half eyeArea;
+                    half2 eyeAreaReplace = 0.0;
+                    half2 browReplace = 0.0;
+                    half2 mouthReplace = 0.0;
+                    
+                    Step6Color(occAndDiscoloration.y, step_var, blackArea, skinArea);
+                    
+                    s.diffColor.rgb *= step_var.rgb;
+                #endif
+                
                 half3 sssColor = tex2D(_SubsurfaceMap, i.tex.xy).rgb * _SubsurfaceColor.rgb;
+                
+                #if _DiscolorationSystem
+                    sssColor.rgb *= step_var.rgb;
+                    
+                #endif
+                
                 half4 c = BuildinFragmentPBR(s.diffColor, s.specColor, s.oneMinusReflectivity, s.metallic, s.smoothness, s.normalWorld, -s.eyeVec, light, noIndirect, sssColor);
-
+                
                 UNITY_EXTRACT_FOG_FROM_EYE_VEC(i);
                 UNITY_APPLY_FOG_COLOR(_unity_fogCoord, c.rgb, half4(0, 0, 0, 0)); // fog towards black in additive pass
-                return OutputForward(c, s.alpha);
+                
+                half4 effectiveMask = tex2D(_EffectiveMap, i.tex.xy * 0.5);
+                half4 effectiveDisslive = _EffectiveColor;
+                
+                half alphaMinus = 1.0 - _EffectiveColor.a;
+                effectiveDisslive.a = smoothstep(alphaMinus - 0.1, alphaMinus + 0.1, (1.0 - effectiveMask.r + 0.1 * (_EffectiveColor.a - 0.5) * 2.0));
+                c.rgb *= effectiveDisslive.rgb;
+                return OutputForward(c * effectiveDisslive.a, s.alpha);
             }
             
             ENDCG
@@ -588,20 +785,20 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
         
         // ------------------------------------------------------------------
         //  Shadow rendering pass
+        
         Pass
         {
             Name "ShadowCaster"
             Tags { "LightMode" = "ShadowCaster" }
-
+            
             ZWrite On ZTest LEqual
             
             CGPROGRAM
             
             #pragma target 3.0
-
+            
             // -------------------------------------
-
-
+            
             #pragma shader_feature_local _ _ALPHATEST_ON _ALPHABLEND_ON _ALPHAPREMULTIPLY_ON
             #pragma shader_feature_local _METALLICGLOSSMAP
             #pragma shader_feature_local _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
@@ -610,54 +807,218 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             #pragma multi_compile_instancing
             // Uncomment the following line to enable dithering LOD crossfade. Note: there are more in the file to uncomment for other passes.
             //#pragma multi_compile _ LOD_FADE_CROSSFADE
-
+            
             #pragma vertex vertShadowCaster
             #pragma fragment fragShadowCaster
-
-            #include "UnityStandardShadow.cginc"
+            
+            
+            #include "UnityCG.cginc"
+            #include "UnityShaderVariables.cginc"
+            #include "UnityStandardConfig.cginc"
+            #include "UnityStandardUtils.cginc"
+            
+            #if (defined(_ALPHABLEND_ON) || defined(_ALPHAPREMULTIPLY_ON)) && defined(UNITY_USE_DITHER_MASK_FOR_ALPHABLENDED_SHADOWS)
+                #define UNITY_STANDARD_USE_DITHER_MASK 1
+            #endif
+            
+            // Need to output UVs in shadow caster, since we need to sample texture and do clip/dithering based on it
+            #if defined(_ALPHATEST_ON) || defined(_ALPHABLEND_ON) || defined(_ALPHAPREMULTIPLY_ON)
+                #define UNITY_STANDARD_USE_SHADOW_UVS 1
+            #endif
+            
+            // Has a non-empty shadow caster output struct (it's an error to have empty structs on some platforms...)
+            #if !defined(V2F_SHADOW_CASTER_NOPOS_IS_EMPTY) || defined(UNITY_STANDARD_USE_SHADOW_UVS)
+                #define UNITY_STANDARD_USE_SHADOW_OUTPUT_STRUCT 1
+            #endif
+            
+            #ifdef UNITY_STEREO_INSTANCING_ENABLED
+                #define UNITY_STANDARD_USE_STEREO_SHADOW_OUTPUT_STRUCT 1
+            #endif
+            
+            
+            half4 _Color;
+            half _Cutoff;
+            sampler2D _MainTex;
+            float4 _MainTex_ST;
+            sampler2D _EffectiveMap;
+            float4 _EffectiveColor;
+            #ifdef UNITY_STANDARD_USE_DITHER_MASK
+                sampler3D _DitherMaskLOD;
+            #endif
+            
+            // Handle PremultipliedAlpha from Fade or Transparent shading mode
+            half4 _SpecColor;
+            half _Metallic;
+            #ifdef _SPECGLOSSMAP
+                sampler2D _SpecGlossMap;
+            #endif
+            #ifdef _METALLICGLOSSMAP
+                sampler2D _MetallicGlossMap;
+            #endif
+            
+            #if defined(UNITY_STANDARD_USE_SHADOW_UVS) && defined(_PARALLAXMAP)
+                sampler2D _ParallaxMap;
+                half _Parallax;
+            #endif
+            
+            half MetallicSetup_ShadowGetOneMinusReflectivity(half2 uv)
+            {
+                half metallicity = _Metallic;
+                #ifdef _METALLICGLOSSMAP
+                    metallicity = tex2D(_MetallicGlossMap, uv).r;
+                #endif
+                return OneMinusReflectivityFromMetallic(metallicity);
+            }
+            
+            half RoughnessSetup_ShadowGetOneMinusReflectivity(half2 uv)
+            {
+                half metallicity = _Metallic;
+                #ifdef _METALLICGLOSSMAP
+                    metallicity = tex2D(_MetallicGlossMap, uv).r;
+                #endif
+                return OneMinusReflectivityFromMetallic(metallicity);
+            }
+            
+            half SpecularSetup_ShadowGetOneMinusReflectivity(half2 uv)
+            {
+                half3 specColor = _SpecColor.rgb;
+                #ifdef _SPECGLOSSMAP
+                    specColor = tex2D(_SpecGlossMap, uv).rgb;
+                #endif
+                return(1 - SpecularStrength(specColor));
+            }
+            
+            // SHADOW_ONEMINUSREFLECTIVITY(): workaround to get one minus reflectivity based on UNITY_SETUP_BRDF_INPUT
+            #define SHADOW_JOIN2(a, b) a##b
+            #define SHADOW_JOIN(a, b) SHADOW_JOIN2(a, b)
+            #define SHADOW_ONEMINUSREFLECTIVITY SHADOW_JOIN(UNITY_SETUP_BRDF_INPUT, _ShadowGetOneMinusReflectivity)
+            
+            struct VertexInput
+            {
+                float4 vertex: POSITION;
+                float3 normal: NORMAL;
+                float2 uv0: TEXCOORD0;
+                #if defined(UNITY_STANDARD_USE_SHADOW_UVS) && defined(_PARALLAXMAP)
+                    half4 tangent: TANGENT;
+                #endif
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+            
+            #ifdef UNITY_STANDARD_USE_SHADOW_OUTPUT_STRUCT
+                struct VertexOutputShadowCaster
+                {
+                    V2F_SHADOW_CASTER_NOPOS
+                    #if defined(UNITY_STANDARD_USE_SHADOW_UVS)
+                        float2 tex: TEXCOORD1;
+                        
+                        #if defined(_PARALLAXMAP)
+                            half3 viewDirForParallax: TEXCOORD2;
+                        #endif
+                    #endif
+                };
+            #endif
+            
+            #ifdef UNITY_STANDARD_USE_STEREO_SHADOW_OUTPUT_STRUCT
+                struct VertexOutputStereoShadowCaster
+                {
+                    UNITY_VERTEX_OUTPUT_STEREO
+                };
+            #endif
+            
+            // We have to do these dances of outputting SV_POSITION separately from the vertex shader,
+            // and inputting VPOS in the pixel shader, since they both map to "POSITION" semantic on
+            // some platforms, and then things don't go well.
+            
+            
+            void vertShadowCaster(VertexInput v, out float4 opos: SV_POSITION
+            #ifdef UNITY_STANDARD_USE_SHADOW_OUTPUT_STRUCT
+            , out VertexOutputShadowCaster o
+            #endif
+            #ifdef UNITY_STANDARD_USE_STEREO_SHADOW_OUTPUT_STRUCT
+            , out VertexOutputStereoShadowCaster os
+            #endif
+            )
+            {
+                UNITY_SETUP_INSTANCE_ID(v);
+                #ifdef UNITY_STANDARD_USE_STEREO_SHADOW_OUTPUT_STRUCT
+                    UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(os);
+                #endif
+                TRANSFER_SHADOW_CASTER_NOPOS(o, opos)
+                #if defined(UNITY_STANDARD_USE_SHADOW_UVS)
+                    o.tex = TRANSFORM_TEX(v.uv0, _MainTex);
+                    
+                    #ifdef _PARALLAXMAP
+                        TANGENT_SPACE_ROTATION;
+                        o.viewDirForParallax = mul(rotation, ObjSpaceViewDir(v.vertex));
+                    #endif
+                #endif
+            }
+            
+            half4 fragShadowCaster(UNITY_POSITION(vpos)
+            #ifdef UNITY_STANDARD_USE_SHADOW_OUTPUT_STRUCT
+            , VertexOutputShadowCaster i
+            #endif
+            ): SV_Target
+            {
+                #if defined(UNITY_STANDARD_USE_SHADOW_UVS)
+                    #if defined(_PARALLAXMAP) && (SHADER_TARGET >= 30)
+                        half3 viewDirForParallax = normalize(i.viewDirForParallax);
+                        fixed h = tex2D(_ParallaxMap, i.tex.xy).g;
+                        half2 offset = ParallaxOffset1Step(h, _Parallax, viewDirForParallax);
+                        i.tex.xy += offset;
+                    #endif
+                    
+                    #if defined(_SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A)
+                        half alpha = _Color.a;
+                    #else
+                        half alpha = tex2D(_MainTex, i.tex.xy).a * _Color.a;
+                    #endif
+                    
+                    half4 effectiveMask = tex2D(_EffectiveMap, i.tex.xy);
+                    half4 effectiveDisslive = _EffectiveColor;
+                    half alphaMinus = 1.0 - _EffectiveColor.a;
+                    effectiveDisslive.a = smoothstep(alphaMinus - 0.1, alphaMinus + 0.1, (1.0 - effectiveMask.r + 0.1 * (_EffectiveColor.a - 0.5) * 2.0));
+                    
+                    clip(effectiveDisslive.a * alpha - 0.5 - _Cutoff);
+                    
+                    #if defined(_ALPHABLEND_ON) || defined(_ALPHAPREMULTIPLY_ON)
+                        #if defined(_ALPHAPREMULTIPLY_ON)
+                            half outModifiedAlpha;
+                            PreMultiplyAlpha(half3(0, 0, 0), alpha, SHADOW_ONEMINUSREFLECTIVITY(i.tex), outModifiedAlpha);
+                            alpha = outModifiedAlpha;
+                        #endif
+                        #if defined(UNITY_STANDARD_USE_DITHER_MASK)
+                            // Use dither mask for alpha blended shadows, based on pixel position xy
+                            // and alpha level. Our dither texture is 4x4x16.
+                            #ifdef LOD_FADE_CROSSFADE
+                                #define _LOD_FADE_ON_ALPHA
+                                alpha *= unity_LODFade.y;
+                            #endif
+                            half alphaRef = tex3D(_DitherMaskLOD, float3(vpos.xy * 0.25, alpha * 0.9375)).a;
+                            clip(alphaRef - 0.01);
+                        #else
+                            clip(alpha - _Cutoff);
+                        #endif
+                    #endif
+                #endif // #if defined(UNITY_STANDARD_USE_SHADOW_UVS)
+                
+                #ifdef LOD_FADE_CROSSFADE
+                    #ifdef _LOD_FADE_ON_ALPHA
+                        #undef _LOD_FADE_ON_ALPHA
+                    #else
+                        UnityApplyDitherCrossFade(vpos.xy);
+                    #endif
+                #endif
+                
+                SHADOW_CASTER_FRAGMENT(i)
+            }
+            
             
             ENDCG
             
         }
+        
         /*
-        // ------------------------------------------------------------------
-        //  Deferred pass
-        Pass
-        {
-            Name "DEFERRED"
-            Tags { "LightMode" = "Deferred" }
-            
-            CGPROGRAM
-            
-            #pragma target 3.0
-            #pragma exclude_renderers nomrt
-
-
-            // -------------------------------------
-
-            #pragma shader_feature_local _NORMALMAP
-            #pragma shader_feature_local _ _ALPHATEST_ON _ALPHABLEND_ON _ALPHAPREMULTIPLY_ON
-            #pragma shader_feature _EMISSION
-            #pragma shader_feature_local _METALLICGLOSSMAP
-            #pragma shader_feature_local _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
-            #pragma shader_feature_local _SPECULARHIGHLIGHTS_OFF
-            #pragma shader_feature_local _DETAIL_MULX2
-            #pragma shader_feature_local _PARALLAXMAP
-
-            #pragma multi_compile_prepassfinal
-            #pragma multi_compile_instancing
-            // Uncomment the following line to enable dithering LOD crossfade. Note: there are more in the file to uncomment for other passes.
-            //#pragma multi_compile _ LOD_FADE_CROSSFADE
-
-            #pragma vertex vertDeferred
-            #pragma fragment fragDeferred
-
-            #include "UnityStandardCore.cginc"
-            
-            ENDCG
-            
-        }
-        */
         // ------------------------------------------------------------------
         // Extracts information for lightmapping, GI (emission, albedo, ...)
         // This pass it not used during regular rendering.
@@ -665,26 +1026,25 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
         {
             Name "META"
             Tags { "LightMode" = "Meta" }
-
+            
             Cull Off
             
             CGPROGRAM
             
             #pragma vertex vert_meta
             #pragma fragment frag_meta
-
+            
             #pragma shader_feature _EMISSION
             #pragma shader_feature_local _METALLICGLOSSMAP
             #pragma shader_feature_local _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
             #pragma shader_feature_local _DETAIL_MULX2
             #pragma shader_feature EDITOR_VISUALIZATION
-
+            
             #include "UnityStandardMeta.cginc"
             ENDCG
             
+            */
         }
+        
+        CustomEditor "UnityEditor.Rendering.Funcy.BuildinRP.ShaderGUI.LitShader"
     }
-
-    FallBack "VertexLit"
-    CustomEditor "UnityEditor.Rendering.Funcy.BuildinRP.ShaderGUI.LitShader"
-}

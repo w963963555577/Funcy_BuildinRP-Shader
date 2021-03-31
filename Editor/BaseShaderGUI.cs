@@ -5,13 +5,17 @@ using UnityEditor;
 using UnityEditor.Rendering;
 using UnityEditor.AnimatedValues;
 using System.Collections.Generic;
-
+using System.Reflection;
+using System.Linq;
 
 namespace UnityEditor
 {
     [InitializeOnLoad]
     public abstract class BaseShaderGUI : ShaderGUI
     {
+        public MaterialEditor materialEditor;
+        public MaterialProperty[] props;
+
         private enum WorkflowMode
         {
             Specular,
@@ -94,8 +98,38 @@ namespace UnityEditor
 
         bool m_FirstTimeApply = true;
 
-        public virtual void FindProperties(MaterialProperty[] props)
+
+        public virtual void FindProperties(ShaderGUI data)
         {
+            BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+
+            var obj = data;
+            var poList = obj.GetType().GetProperties(flags).ToList().FindAll(p => p.PropertyType == typeof(MaterialProperty));
+
+            foreach (var po in poList)
+            {
+                var f = string.Format("_{0}{1}", po.Name.Substring(0, 1).ToUpper(), po.Name.Substring(1));
+
+                try
+                {
+                    po.SetValue(obj, FindProperty(f, props));
+                }
+                catch
+                {
+                    continue;
+                }
+            }
+        }
+
+        public virtual void FindProperties(MaterialEditor materialEditor, MaterialProperty[] props, ShaderGUI data = null)
+        {
+            this.materialEditor = materialEditor;
+            this.props = props;
+            if(data != null)
+            {
+                FindProperties(data);
+            }
+
             blendMode = FindProperty("_Mode", props);
             albedoMap = FindProperty("_MainTex", props);
             albedoColor = FindProperty("_Color", props);
@@ -130,9 +164,10 @@ namespace UnityEditor
             uvSetSecondary = FindProperty("_UVSec", props);
         }
 
+
         public override void OnGUI(MaterialEditor materialEditor, MaterialProperty[] props)
-        {
-            FindProperties(props); // MaterialProperties can be animated so we do not cache them but fetch them every event to ensure animated values are updated correctly
+        {                    
+            FindProperties(materialEditor, props); // MaterialProperties can be animated so we do not cache them but fetch them every event to ensure animated values are updated correctly
             m_MaterialEditor = materialEditor;
             Material material = materialEditor.target as Material;
 
@@ -407,12 +442,16 @@ namespace UnityEditor
 
         public static void SetupMaterialWithBlendMode(Material material, BlendMode blendMode)
         {
+            material.DisableKeyword("_ALPHATEST_ON");
+            material.DisableKeyword("_ALPHABLEND_ON");
+            material.EnableKeyword("_ALPHAPREMULTIPLY_ON");
+            /*
             switch (blendMode)
             {
                 case BlendMode.Opaque:
                     material.SetOverrideTag("RenderType", "");
-                    material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
-                    material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
+                    //material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+                    //material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
                     material.SetInt("_ZWrite", 1);
                     material.DisableKeyword("_ALPHATEST_ON");
                     material.DisableKeyword("_ALPHABLEND_ON");
@@ -421,18 +460,18 @@ namespace UnityEditor
                     break;
                 case BlendMode.Cutout:
                     material.SetOverrideTag("RenderType", "TransparentCutout");
-                    material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
-                    material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
+                    //material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+                    //material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
                     material.SetInt("_ZWrite", 1);
                     material.EnableKeyword("_ALPHATEST_ON");
                     material.DisableKeyword("_ALPHABLEND_ON");
                     material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-                    material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
+                    //material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
                     break;
                 case BlendMode.Fade:
                     material.SetOverrideTag("RenderType", "Transparent");
-                    material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-                    material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                    //material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                    //material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
                     material.SetInt("_ZWrite", 0);
                     material.DisableKeyword("_ALPHATEST_ON");
                     material.EnableKeyword("_ALPHABLEND_ON");
@@ -441,15 +480,16 @@ namespace UnityEditor
                     break;
                 case BlendMode.Transparent:
                     material.SetOverrideTag("RenderType", "Transparent");
-                    material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
-                    material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                    //material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+                    //material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
                     material.SetInt("_ZWrite", 0);
                     material.DisableKeyword("_ALPHATEST_ON");
                     material.DisableKeyword("_ALPHABLEND_ON");
                     material.EnableKeyword("_ALPHAPREMULTIPLY_ON");
-                    material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+                    //material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
                     break;
             }
+            */
         }
 
         static SmoothnessMapChannel GetSmoothnessMapChannel(Material material)
