@@ -46,6 +46,8 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
         _RimLightSoftness ("Softness", Range(0.0, 1.0)) = 0.6
         _MaxHDR ("Max HDR", Range(0.0, 10.0)) = 10.0
         
+        [HDR]_FlashingColor ("Flash Color", Color) = (0.75, 0.3, 0.2, 1)
+        
         // _DiscolorationSystem
         [Toggle(_DiscolorationSystem)] _DiscolorationSystem ("Enable Discoloration System", float) = 0
         _DiscolorationColorCount ("Use Color Count", Range(1, 6)) = 2
@@ -130,6 +132,8 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             half _RimLightSoftness;
             half _MaxHDR;
             
+            half4 _FlashingColor;
+            
             //Discoloration System
             float4 _DiscolorationColor_0;
             float4 _DiscolorationColor_1;
@@ -209,6 +213,13 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 
                 UNITY_TRANSFER_FOG_COMBINED_WITH_EYE_VEC(o, o.pos);
                 return o;
+            }
+            
+            half GetColorHDRValue(half3 color)
+            {
+                half scaleFactor = 191.0 / max(color.r, max(color.b, color.g));
+                half hdr = log(255.0 / scaleFactor) / log(2.0);
+                return max(0.0, hdr);
             }
             
             // Calculates the subsurface light radiating out from the current fragment. This is a simple approximation using wrapped lighting.
@@ -325,13 +336,14 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 color += lerp(mainLightContribution, subsurfaceContribution, _SubsurfaceScattering * (1.0 - metallic));
                 color += emission;
                 
+                half _FlashArea = smoothstep(0.2, 1.0, 1.0 - max(0, dot(normal, viewDir)));
                 
                 half fresnel = smoothstep(_RimLightSoftness, 1.0, 1.0 - saturate(dot(normal, viewDir)));
                 half3 rimLighting = gi.diffuse * Ndot * fresnel * 1.0 * _RimLightColor;
                 
                 color += rimLighting;
                 //alpha = max(fresnel * _RimLightColor.a, alpha);
-                color.rgb = clamp(color, 0.0.xxxx, (max(gi.diffuse, GI)) * _MaxHDR);
+                color.rgb = clamp(color, 0.0.xxxx, (max(gi.diffuse, GI)) * _MaxHDR) + _FlashArea * GetColorHDRValue(_FlashingColor.rgb) * _FlashingColor.rgb;
                 return half4(color, 1.0);
             }
             #if _DiscolorationSystem
@@ -434,7 +446,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 half alphaMinus = 1.0 - _EffectiveColor.a;
                 effectiveDisslive.a = smoothstep(alphaMinus - 0.1, alphaMinus + 0.1, (1.0 - effectiveMask.r + 0.1 * (_EffectiveColor.a - 0.5) * 2.0));
                 c.rgb *= effectiveDisslive.rgb;
-                return OutputForward(c , s.alpha * effectiveDisslive.a);
+                return OutputForward(c, s.alpha * effectiveDisslive.a);
             }
             
             ENDCG
@@ -816,204 +828,8 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             #include "UnityShaderVariables.cginc"
             #include "UnityStandardConfig.cginc"
             #include "UnityStandardUtils.cginc"
-            
-            #if (defined(_ALPHABLEND_ON) || defined(_ALPHAPREMULTIPLY_ON)) && defined(UNITY_USE_DITHER_MASK_FOR_ALPHABLENDED_SHADOWS)
-                #define UNITY_STANDARD_USE_DITHER_MASK 1
-            #endif
-            
-            // Need to output UVs in shadow caster, since we need to sample texture and do clip/dithering based on it
-            #if defined(_ALPHATEST_ON) || defined(_ALPHABLEND_ON) || defined(_ALPHAPREMULTIPLY_ON)
-                #define UNITY_STANDARD_USE_SHADOW_UVS 1
-            #endif
-            
-            // Has a non-empty shadow caster output struct (it's an error to have empty structs on some platforms...)
-            #if !defined(V2F_SHADOW_CASTER_NOPOS_IS_EMPTY) || defined(UNITY_STANDARD_USE_SHADOW_UVS)
-                #define UNITY_STANDARD_USE_SHADOW_OUTPUT_STRUCT 1
-            #endif
-            
-            #ifdef UNITY_STEREO_INSTANCING_ENABLED
-                #define UNITY_STANDARD_USE_STEREO_SHADOW_OUTPUT_STRUCT 1
-            #endif
-            
-            
-            half4 _Color;
-            half _Cutoff;
-            sampler2D _MainTex;
-            float4 _MainTex_ST;
-            sampler2D _EffectiveMap;
-            float4 _EffectiveColor;
-            #ifdef UNITY_STANDARD_USE_DITHER_MASK
-                sampler3D _DitherMaskLOD;
-            #endif
-            
-            // Handle PremultipliedAlpha from Fade or Transparent shading mode
-            half4 _SpecColor;
-            half _Metallic;
-            #ifdef _SPECGLOSSMAP
-                sampler2D _SpecGlossMap;
-            #endif
-            #ifdef _METALLICGLOSSMAP
-                sampler2D _MetallicGlossMap;
-            #endif
-            
-            #if defined(UNITY_STANDARD_USE_SHADOW_UVS) && defined(_PARALLAXMAP)
-                sampler2D _ParallaxMap;
-                half _Parallax;
-            #endif
-            
-            half MetallicSetup_ShadowGetOneMinusReflectivity(half2 uv)
-            {
-                half metallicity = _Metallic;
-                #ifdef _METALLICGLOSSMAP
-                    metallicity = tex2D(_MetallicGlossMap, uv).r;
-                #endif
-                return OneMinusReflectivityFromMetallic(metallicity);
-            }
-            
-            half RoughnessSetup_ShadowGetOneMinusReflectivity(half2 uv)
-            {
-                half metallicity = _Metallic;
-                #ifdef _METALLICGLOSSMAP
-                    metallicity = tex2D(_MetallicGlossMap, uv).r;
-                #endif
-                return OneMinusReflectivityFromMetallic(metallicity);
-            }
-            
-            half SpecularSetup_ShadowGetOneMinusReflectivity(half2 uv)
-            {
-                half3 specColor = _SpecColor.rgb;
-                #ifdef _SPECGLOSSMAP
-                    specColor = tex2D(_SpecGlossMap, uv).rgb;
-                #endif
-                return(1 - SpecularStrength(specColor));
-            }
-            
-            // SHADOW_ONEMINUSREFLECTIVITY(): workaround to get one minus reflectivity based on UNITY_SETUP_BRDF_INPUT
-            #define SHADOW_JOIN2(a, b) a##b
-            #define SHADOW_JOIN(a, b) SHADOW_JOIN2(a, b)
-            #define SHADOW_ONEMINUSREFLECTIVITY SHADOW_JOIN(UNITY_SETUP_BRDF_INPUT, _ShadowGetOneMinusReflectivity)
-            
-            struct VertexInput
-            {
-                float4 vertex: POSITION;
-                float3 normal: NORMAL;
-                float2 uv0: TEXCOORD0;
-                #if defined(UNITY_STANDARD_USE_SHADOW_UVS) && defined(_PARALLAXMAP)
-                    half4 tangent: TANGENT;
-                #endif
-                UNITY_VERTEX_INPUT_INSTANCE_ID
-            };
-            
-            #ifdef UNITY_STANDARD_USE_SHADOW_OUTPUT_STRUCT
-                struct VertexOutputShadowCaster
-                {
-                    V2F_SHADOW_CASTER_NOPOS
-                    #if defined(UNITY_STANDARD_USE_SHADOW_UVS)
-                        float2 tex: TEXCOORD1;
-                        
-                        #if defined(_PARALLAXMAP)
-                            half3 viewDirForParallax: TEXCOORD2;
-                        #endif
-                    #endif
-                };
-            #endif
-            
-            #ifdef UNITY_STANDARD_USE_STEREO_SHADOW_OUTPUT_STRUCT
-                struct VertexOutputStereoShadowCaster
-                {
-                    UNITY_VERTEX_OUTPUT_STEREO
-                };
-            #endif
-            
-            // We have to do these dances of outputting SV_POSITION separately from the vertex shader,
-            // and inputting VPOS in the pixel shader, since they both map to "POSITION" semantic on
-            // some platforms, and then things don't go well.
-            
-            
-            void vertShadowCaster(VertexInput v, out float4 opos: SV_POSITION
-            #ifdef UNITY_STANDARD_USE_SHADOW_OUTPUT_STRUCT
-            , out VertexOutputShadowCaster o
-            #endif
-            #ifdef UNITY_STANDARD_USE_STEREO_SHADOW_OUTPUT_STRUCT
-            , out VertexOutputStereoShadowCaster os
-            #endif
-            )
-            {
-                UNITY_SETUP_INSTANCE_ID(v);
-                #ifdef UNITY_STANDARD_USE_STEREO_SHADOW_OUTPUT_STRUCT
-                    UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(os);
-                #endif
-                TRANSFER_SHADOW_CASTER_NOPOS(o, opos)
-                #if defined(UNITY_STANDARD_USE_SHADOW_UVS)
-                    o.tex = TRANSFORM_TEX(v.uv0, _MainTex);
-                    
-                    #ifdef _PARALLAXMAP
-                        TANGENT_SPACE_ROTATION;
-                        o.viewDirForParallax = mul(rotation, ObjSpaceViewDir(v.vertex));
-                    #endif
-                #endif
-            }
-            
-            half4 fragShadowCaster(UNITY_POSITION(vpos)
-            #ifdef UNITY_STANDARD_USE_SHADOW_OUTPUT_STRUCT
-            , VertexOutputShadowCaster i
-            #endif
-            ): SV_Target
-            {
-                #if defined(UNITY_STANDARD_USE_SHADOW_UVS)
-                    #if defined(_PARALLAXMAP) && (SHADER_TARGET >= 30)
-                        half3 viewDirForParallax = normalize(i.viewDirForParallax);
-                        fixed h = tex2D(_ParallaxMap, i.tex.xy).g;
-                        half2 offset = ParallaxOffset1Step(h, _Parallax, viewDirForParallax);
-                        i.tex.xy += offset;
-                    #endif
-                    
-                    #if defined(_SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A)
-                        half alpha = _Color.a;
-                    #else
-                        half alpha = tex2D(_MainTex, i.tex.xy).a * _Color.a;
-                    #endif
-                    
-                    half4 effectiveMask = tex2D(_EffectiveMap, i.tex.xy);
-                    half4 effectiveDisslive = _EffectiveColor;
-                    half alphaMinus = 1.0 - _EffectiveColor.a;
-                    effectiveDisslive.a = smoothstep(alphaMinus - 0.1, alphaMinus + 0.1, (1.0 - effectiveMask.r + 0.1 * (_EffectiveColor.a - 0.5) * 2.0));
-                    
-                    clip(effectiveDisslive.a * alpha - 0.5 - _Cutoff);
-                    
-                    #if defined(_ALPHABLEND_ON) || defined(_ALPHAPREMULTIPLY_ON)
-                        #if defined(_ALPHAPREMULTIPLY_ON)
-                            half outModifiedAlpha;
-                            PreMultiplyAlpha(half3(0, 0, 0), alpha, SHADOW_ONEMINUSREFLECTIVITY(i.tex), outModifiedAlpha);
-                            alpha = outModifiedAlpha;
-                        #endif
-                        #if defined(UNITY_STANDARD_USE_DITHER_MASK)
-                            // Use dither mask for alpha blended shadows, based on pixel position xy
-                            // and alpha level. Our dither texture is 4x4x16.
-                            #ifdef LOD_FADE_CROSSFADE
-                                #define _LOD_FADE_ON_ALPHA
-                                alpha *= unity_LODFade.y;
-                            #endif
-                            half alphaRef = tex3D(_DitherMaskLOD, float3(vpos.xy * 0.25, alpha * 0.9375)).a;
-                            clip(alphaRef - 0.01);
-                        #else
-                            clip(alpha - _Cutoff);
-                        #endif
-                    #endif
-                #endif // #if defined(UNITY_STANDARD_USE_SHADOW_UVS)
-                
-                #ifdef LOD_FADE_CROSSFADE
-                    #ifdef _LOD_FADE_ON_ALPHA
-                        #undef _LOD_FADE_ON_ALPHA
-                    #else
-                        UnityApplyDitherCrossFade(vpos.xy);
-                    #endif
-                #endif
-                
-                SHADOW_CASTER_FRAGMENT(i)
-            }
-            
-            
+            #include "PBRBase(SSS)ShadowCaster.hlsl"
+           
             ENDCG
             
         }

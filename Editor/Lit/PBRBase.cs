@@ -33,7 +33,9 @@ namespace UnityEditor.Rendering.Funcy.BuildinRP.ShaderGUI
 
 
         MaterialProperty effectiveMap { get; set; }
+
         MaterialProperty effectiveColor { get; set; }
+        MaterialProperty flashingColor { get; set; }
 
         MaterialProperty srcBlend { get; set; }
         MaterialProperty dstBlend { get; set; }
@@ -76,6 +78,18 @@ namespace UnityEditor.Rendering.Funcy.BuildinRP.ShaderGUI
                 GUILayout.EndVertical();
                 GUILayout.Space(10);
                 GUILayout.EndVertical();
+
+                GUILayout.BeginVertical("Box");
+                GUILayout.Label("Flashing", EditorStyles.boldLabel);
+                GUILayout.BeginVertical("Box");
+                {
+                    materialEditor.ColorProperty(flashingColor, flashingColor.displayName);
+                    GUILayout.Space(10);
+                }
+                GUILayout.EndVertical();
+                GUILayout.Space(10);
+                GUILayout.EndVertical();
+
 
                 GUILayout.BeginVertical("Box");
                 GUILayout.Label("Blend Mode", EditorStyles.boldLabel);
