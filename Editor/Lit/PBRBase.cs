@@ -21,7 +21,7 @@ namespace UnityEditor.Rendering.Funcy.BuildinRP.ShaderGUI
 
 
         //Discoloration System
-        MaterialProperty discolorationSystem { get; set; }
+        MaterialProperty discoloration { get; set; }
         MaterialProperty discolorationColorCount { get; set; }
         MaterialProperty discolorationColor_0 { get; set; }
         MaterialProperty discolorationColor_1 { get; set; }
@@ -116,8 +116,8 @@ namespace UnityEditor.Rendering.Funcy.BuildinRP.ShaderGUI
 
             DrawArea("Discoloration System", () =>
             {
-                materialEditor.ShaderProperty(discolorationSystem, "Enable");
-                EditorGUI.BeginDisabledGroup(mat.GetFloat("_DiscolorationSystem") == 0.0);
+                materialEditor.ShaderProperty(discoloration, "Enable");
+                EditorGUI.BeginDisabledGroup(mat.GetFloat("_Discoloration") == 0.0);
                 materialEditor.ShaderProperty(discolorationColorCount, discolorationColorCount.displayName.ToGUIContent());
                 mat.SetFloat("_DiscolorationColorCount", Mathf.Floor(mat.GetFloat("_DiscolorationColorCount")));
                 byte[] discolorationLabelByte = new byte[] { 0, 142, 170, 198, 227, 255 };

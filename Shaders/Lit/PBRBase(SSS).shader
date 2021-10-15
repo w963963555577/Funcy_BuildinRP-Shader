@@ -49,7 +49,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
         [HDR]_FlashingColor ("Flash Color", Color) = (0.75, 0.3, 0.2, 1)
         
         // _DiscolorationSystem
-        [Toggle(_DiscolorationSystem)] _DiscolorationSystem ("Enable Discoloration System", float) = 0
+        [Toggle] _Discoloration ("Enable Discoloration System", float) = 0
         _DiscolorationColorCount ("Use Color Count", Range(1, 6)) = 2
         [HDR]_DiscolorationColor_0 ("DiscolorationColor_0", Color) = (1, 1, 1, 1)
         [HDR]_DiscolorationColor_1 ("DiscolorationColor_1", Color) = (1, 1, 1, 1)
@@ -84,6 +84,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
         
         // ------------------------------------------------------------------
         //  Base forward pass (directional light, emission, lightmaps, ...)
+        
         Pass
         {
             Name "FORWARD"
@@ -98,21 +99,39 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             
             // -------------------------------------
             
-            #pragma shader_feature_local _NORMALMAP
+            #define _NORMALMAP 1
+            //#pragma shader_feature_local _NORMALMAP
             #pragma shader_feature_local _ _ALPHATEST_ON _ALPHABLEND_ON _ALPHAPREMULTIPLY_ON
-            #pragma shader_feature _EMISSION
+            #define _EMISSION 1
+            //#pragma shader_feature _EMISSION
+            //#define _METALLICGLOSSMAP 1
             #pragma shader_feature_local _METALLICGLOSSMAP
-            #pragma shader_feature_local _DETAIL_MULX2
-            #pragma shader_feature_local _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
-            #pragma shader_feature_local _SPECULARHIGHLIGHTS_OFF
-            #pragma shader_feature_local _GLOSSYREFLECTIONS_OFF
+            //#pragma shader_feature_local _DETAIL_MULX2
+            //#pragma shader_feature_local _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
+            //#pragma shader_feature_local _SPECULARHIGHLIGHTS_OFF
+            //#pragma shader_feature_local _GLOSSYREFLECTIONS_OFF
             #pragma shader_feature_local _PARALLAXMAP
             
-            #pragma multi_compile_fwdbase
-            #pragma multi_compile_fog
-            #pragma multi_compile_instancing
+            #define DIRECTIONAL 1
+            #define LIGHTPROBE_SH 1
+            #define SHADOWS_SCREEN 1
             
-            #pragma multi_compile _ _DiscolorationSystem
+            #define VERTEXLIGHT_ON 0
+            #define DIRLIGHTMAP_COMBINED 1
+            #define DYNAMICLIGHTMAP_ON 1
+            #define LIGHTMAP_SHADOW_MIXING 1
+            #define SHADOWS_SHADOWMASK 1
+            
+            //#pragma multi_compile_fwdbase
+            
+            #define FOG_LINEAR 1
+            //#define FOG_EXP 0
+            //#define FOG_EXP2 0
+            //#pragma multi_compile_fog
+            #define INSTANCING_ON 1
+            //#pragma multi_compile_instancing
+            
+            #define _DiscolorationSystem 1
             // Uncomment the following line to enable dithering LOD crossfade. Note: there are more in the file to uncomment for other passes.
             //#pragma multi_compile _ LOD_FADE_CROSSFADE
             
@@ -135,6 +154,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             half4 _FlashingColor;
             
             //Discoloration System
+            half _Discoloration;
             float4 _DiscolorationColor_0;
             float4 _DiscolorationColor_1;
             float4 _DiscolorationColor_2;
@@ -424,15 +444,15 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                     
                     Step6Color(occAndDiscoloration.y, step_var, blackArea, skinArea);
                     
-                    s.diffColor.rgb *= step_var.rgb;
+                    s.diffColor.rgb *= lerp(1.0.xxx, step_var.rgb, _Discoloration);
                 #endif
                 
                 half3 sssColor = tex2D(_SubsurfaceMap, i.tex.xy).rgb * _SubsurfaceColor.rgb;
                 half3 emission = Emission(i.tex.xy);
                 
                 #if _DiscolorationSystem
-                    sssColor.rgb *= step_var.rgb;
-                    emission.rgb *= step_var.rgb;
+                    sssColor.rgb *= lerp(1.0.xxx, step_var.rgb, _Discoloration);
+                    emission.rgb *= lerp(1.0.xxx, step_var.rgb, _Discoloration);
                 #endif
                 
                 half4 c = BuildinFragmentPBR(s.diffColor, s.specColor, s.oneMinusReflectivity, s.metallic, s.smoothness, s.normalWorld, -s.eyeVec, gi.light, gi.indirect, sssColor, emission);
@@ -452,6 +472,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             ENDCG
             
         }
+        
         // ------------------------------------------------------------------
         //  Additive forward pass (one light per pass)
         
@@ -472,19 +493,38 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             #pragma target 3.0
             
             // -------------------------------------
-            
-            #pragma shader_feature_local _NORMALMAP
+            #define _NORMALMAP 1
+            //#pragma shader_feature_local _NORMALMAP
             #pragma shader_feature_local _ _ALPHATEST_ON _ALPHABLEND_ON _ALPHAPREMULTIPLY_ON
             #pragma shader_feature_local _METALLICGLOSSMAP
-            #pragma shader_feature_local _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
-            #pragma shader_feature_local _SPECULARHIGHLIGHTS_OFF
-            #pragma shader_feature_local _DETAIL_MULX2
+            //#pragma shader_feature_local _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
+            //#pragma shader_feature_local _SPECULARHIGHLIGHTS_OFF
+            //#pragma shader_feature_local _DETAIL_MULX2
             #pragma shader_feature_local _PARALLAXMAP
-            
+            #define INSTANCING_ON 1
+            //#pragma multi_compile_instancing
+            /*
+            #define DIRECTIONAL 1
+            #define DIRECTIONAL_COOKIE 0
+            #define POINT 1
+            #define POINT_COOKIE 0
+            #define SOPT 1
+            #define SHADOWS_DEPTH 1
+            #define SHADOWS_SCREEN 1
+            #define SHADOWS_CUBE 0
+            #define SHADOWS_SOFT 1
+            #define LIGHTMAP_SHADOW_MIXING 1
+            #define SHADOWS_SHADOWMASK 1
+            */
             #pragma multi_compile_fwdadd_fullshadows
-            #pragma multi_compile_fog
             
-            #pragma multi_compile _ _DiscolorationSystem
+            #define FOG_LINEAR 1
+            #define FOG_EXP 0
+            #define FOG_EXP2 0
+            //#pragma multi_compile_fog
+            
+            #define _DiscolorationSystem 1
+            
             // Uncomment the following line to enable dithering LOD crossfade. Note: there are more in the file to uncomment for other passes.
             //#pragma multi_compile _ LOD_FADE_CROSSFADE
             
@@ -505,6 +545,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             half _MaxHDR;
             
             //Discoloration System
+            half _Discoloration;
             float4 _DiscolorationColor_0;
             float4 _DiscolorationColor_1;
             float4 _DiscolorationColor_2;
@@ -767,13 +808,13 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                     
                     Step6Color(occAndDiscoloration.y, step_var, blackArea, skinArea);
                     
-                    s.diffColor.rgb *= step_var.rgb;
+                    s.diffColor.rgb *= lerp(1.0.xxx, step_var.rgb, _Discoloration);
                 #endif
                 
                 half3 sssColor = tex2D(_SubsurfaceMap, i.tex.xy).rgb * _SubsurfaceColor.rgb;
                 
                 #if _DiscolorationSystem
-                    sssColor.rgb *= step_var.rgb;
+                    sssColor.rgb *= lerp(1.0.xxx, step_var.rgb, _Discoloration);
                     
                 #endif
                 
@@ -813,10 +854,11 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             
             #pragma shader_feature_local _ _ALPHATEST_ON _ALPHABLEND_ON _ALPHAPREMULTIPLY_ON
             #pragma shader_feature_local _METALLICGLOSSMAP
-            #pragma shader_feature_local _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
+            //#pragma shader_feature_local _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
             #pragma shader_feature_local _PARALLAXMAP
             #pragma multi_compile_shadowcaster
-            #pragma multi_compile_instancing
+            #define INSTANCING_ON 1
+            //#pragma multi_compile_instancing
             // Uncomment the following line to enable dithering LOD crossfade. Note: there are more in the file to uncomment for other passes.
             //#pragma multi_compile _ LOD_FADE_CROSSFADE
             
@@ -829,7 +871,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             #include "UnityStandardConfig.cginc"
             #include "UnityStandardUtils.cginc"
             #include "PBRBase(SSS)ShadowCaster.hlsl"
-           
+            
             ENDCG
             
         }
