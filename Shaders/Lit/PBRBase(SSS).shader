@@ -124,10 +124,15 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             
             //#pragma multi_compile_fwdbase
             
-            #define FOG_LINEAR 1
-            //#define FOG_EXP 0
-            //#define FOG_EXP2 0
-            //#pragma multi_compile_fog
+            #ifdef SHADER_API_D3D11
+                #pragma multi_compile_fog
+            #else
+                #define FOG_LINEAR 1
+                //#define FOG_EXP 0
+                //#define FOG_EXP2 0
+                
+            #endif
+            
             #define INSTANCING_ON 1
             //#pragma multi_compile_instancing
             
@@ -518,11 +523,15 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             */
             #pragma multi_compile_fwdadd_fullshadows
             
-            #define FOG_LINEAR 1
-            #define FOG_EXP 0
-            #define FOG_EXP2 0
-            //#pragma multi_compile_fog
-            
+            #ifdef SHADER_API_D3D11
+                #pragma multi_compile_fog
+            #else
+                #define FOG_LINEAR 1
+                //#define FOG_EXP 0
+                //#define FOG_EXP2 0
+                
+            #endif
+
             #define _DiscolorationSystem 1
             
             // Uncomment the following line to enable dithering LOD crossfade. Note: there are more in the file to uncomment for other passes.
