@@ -1,11 +1,17 @@
 {
   "name": "com.buildinrp.shader.funcy",
   "description": "\u9019\u662f Funcy \u7684 Shader Package\n\u88e1\u9762\u6709\u5404\u7a2e Tutorial.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "unity": "2019.4",
-  "unityRelease": "10f1",
   "displayName": "_Funcy Build-in RP",
   "dependencies": {
     "com.unity.mathematics": "1.1.0"
-  }
+  },
+  "category": "w963963555577",
+  "author": {
+    "name": "FuncyLi",
+    "email": "w963963555577@gmail.com",
+    "url": "https://funcy-tech-art.xyz/"
+  },
+  "type": "library"
 }
