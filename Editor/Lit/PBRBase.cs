@@ -9,6 +9,8 @@ namespace UnityEditor.Rendering.Funcy.BuildinRP.ShaderGUI
 {    
     internal class LitShader : BaseShaderGUI
     {
+        MaterialProperty albedoHSV { get; set; }
+
         MaterialProperty sssColor { get; set; }
         MaterialProperty subsurfaceMap { get; set; }
         MaterialProperty subsurfaceRadius { get; set; }
@@ -32,13 +34,24 @@ namespace UnityEditor.Rendering.Funcy.BuildinRP.ShaderGUI
         MaterialProperty[] discolorationColorList = new MaterialProperty[6];
 
 
-        MaterialProperty effectiveMap { get; set; }
+        MaterialProperty effectiveMap { get; set; }        
 
-        MaterialProperty effectiveColor { get; set; }
+        MaterialProperty effectiveColor_Light { get; set; }
+        MaterialProperty effectiveColor_Dark { get; set; }
+        MaterialProperty effectiveDisslove { get; set; }
+        
+        MaterialProperty dissliveWithDiretion { get; set; }
+        MaterialProperty dissliveAngle { get; set; }
+        
+
+        MaterialProperty xRayEnabled { get; set; }
+        MaterialProperty xRayColor { get; set; }
+
         MaterialProperty flashingColor { get; set; }
 
         MaterialProperty srcBlend { get; set; }
         MaterialProperty dstBlend { get; set; }
+        
 
         public override void FindProperties(MaterialEditor materialEditor, MaterialProperty[] props, UnityEditor.ShaderGUI data = null)                
         {
@@ -54,7 +67,7 @@ namespace UnityEditor.Rendering.Funcy.BuildinRP.ShaderGUI
         {
             base.OnGUI(materialEditor, props);
         }
-
+        
         public override void ShaderPropertiesGUI(Material material)
         {
             base.ShaderPropertiesGUI(material);
@@ -65,15 +78,18 @@ namespace UnityEditor.Rendering.Funcy.BuildinRP.ShaderGUI
                 m_MaterialEditor.TexturePropertySingleLine(subsurfaceMap.displayName.ToGUIContent(), subsurfaceMap, sssColor, subsurfaceRadius);
             });
 
-
             DrawArea("Effective", () =>
             {
                 GUILayout.BeginVertical("Box");
                 GUILayout.Label("Effective Disslove", EditorStyles.boldLabel);
                 GUILayout.BeginVertical("Box");
                 {
-                    materialEditor.TexturePropertySingleLine(effectiveMap.displayName.ToGUIContent(), effectiveMap, effectiveColor);                    
+                    materialEditor.TexturePropertySingleLine(effectiveMap.displayName.ToGUIContent(), effectiveMap, effectiveColor_Light, effectiveColor_Dark);
+                    materialEditor.ShaderProperty(effectiveDisslove, effectiveDisslove.displayName);
+                    materialEditor.TextureScaleOffsetProperty(effectiveMap);
                     GUILayout.Space(10);
+                    materialEditor.ShaderProperty(dissliveWithDiretion, dissliveWithDiretion.displayName);
+                    materialEditor.ShaderProperty(dissliveAngle, dissliveAngle.displayName);
                 }
                 GUILayout.EndVertical();
                 GUILayout.Space(10);
@@ -90,6 +106,33 @@ namespace UnityEditor.Rendering.Funcy.BuildinRP.ShaderGUI
                 GUILayout.Space(10);
                 GUILayout.EndVertical();
 
+                GUILayout.BeginVertical("Box");
+                GUILayout.Label("XRay", EditorStyles.boldLabel);
+                GUILayout.BeginVertical("Box");
+                {
+                    materialEditor.ShaderProperty(xRayEnabled, xRayEnabled.displayName);
+                    materialEditor.ShaderProperty(xRayColor, xRayColor.displayName);
+                    GUILayout.Space(10);
+                }
+                GUILayout.EndVertical();
+                GUILayout.Space(10);
+                GUILayout.EndVertical();
+
+                GUILayout.BeginVertical("Box");
+                GUILayout.Label("Color Grading", EditorStyles.boldLabel);
+                GUILayout.BeginVertical("Box");
+                {
+                    var vectorValue = albedoHSV.vectorValue;
+                    vectorValue.x = EditorGUILayout.Slider("Hue", vectorValue.x, 0, 1);
+                    vectorValue.y = EditorGUILayout.Slider("Sat", vectorValue.y, 0, 3);
+                    vectorValue.z = EditorGUILayout.Slider("Val", vectorValue.z, 0, 3);
+                    vectorValue.w = EditorGUILayout.Slider("Con", vectorValue.w, -10, 10);
+                    albedoHSV.vectorValue = vectorValue;
+                    GUILayout.Space(10);
+                }
+                GUILayout.EndVertical();
+                GUILayout.Space(10);
+                GUILayout.EndVertical();
 
                 GUILayout.BeginVertical("Box");
                 GUILayout.Label("Blend Mode", EditorStyles.boldLabel);
@@ -102,16 +145,14 @@ namespace UnityEditor.Rendering.Funcy.BuildinRP.ShaderGUI
                 GUILayout.Space(10);
                 GUILayout.EndVertical();
 
-
+                
             });
 
 
             DrawArea("Rim Lighting", () => {
                 m_MaterialEditor.ShaderProperty(rimLightColor, rimLightColor.displayName);
                 m_MaterialEditor.ShaderProperty(rimLightSoftness, rimLightSoftness.displayName);
-                m_MaterialEditor.ShaderProperty(maxHDR, maxHDR.displayName);
-
-                //materialEditor.TexturePropertySingleLine(sssMap.displayName.ToGUIContent(), sssMap, sssColor, sssRadius);
+                m_MaterialEditor.ShaderProperty(maxHDR, maxHDR.displayName);                
             });
 
             DrawArea("Discoloration System", () =>
