@@ -3,6 +3,9 @@ half4 _AlbedoHSV;
 half4 _SubsurfaceColor;
 half _SubsurfaceScattering;
 half _SubsurfaceRadius;
+
+half _SsprEnabled;
+
 half4 _RimLightColor;
 half _RimLightSoftness;
 half _MaxHDR;
@@ -27,6 +30,8 @@ half _XRayEnabled;
 half4 _XRayColor;
 half _DissliveWithDiretion;
 half _DissliveAngle;
+
+sampler2D _MobileSSPR_ColorRT;
 
 sampler2D _SubsurfaceMap;
 sampler2D _EffectiveMap;

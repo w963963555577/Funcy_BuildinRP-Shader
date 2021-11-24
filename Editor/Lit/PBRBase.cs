@@ -16,6 +16,9 @@ namespace UnityEditor.Rendering.Funcy.BuildinRP.ShaderGUI
         MaterialProperty subsurfaceRadius { get; set; }
         MaterialProperty subsurfaceScattering { get; set; }
 
+        MaterialProperty ssprEnabled { get; set; }
+        
+
         MaterialProperty rimLightColor { get; set; }
         MaterialProperty maxHDR { get; set; }
         
@@ -77,6 +80,14 @@ namespace UnityEditor.Rendering.Funcy.BuildinRP.ShaderGUI
                 m_MaterialEditor.ShaderProperty(subsurfaceScattering, subsurfaceScattering.displayName);
                 m_MaterialEditor.TexturePropertySingleLine(subsurfaceMap.displayName.ToGUIContent(), subsurfaceMap, sssColor, subsurfaceRadius);
             });
+
+
+            DrawArea("Screen Space Planar Reflections", () =>
+            {
+                m_MaterialEditor.ShaderProperty(ssprEnabled, ssprEnabled.displayName);
+
+            });
+            
 
             DrawArea("Effective", () =>
             {

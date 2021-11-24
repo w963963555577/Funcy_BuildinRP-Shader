@@ -42,6 +42,10 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
         [HDR]_SubsurfaceColor ("Color", Color) = (1, 1, 1)
         _SubsurfaceMap ("SSS Map", 2D) = "White" { }
         
+        //SSPR
+        [Toggle] _SsprEnabled ("Enable", float) = 0
+        
+        
         [HDR]_RimLightColor ("Color", Color) = (.7, .85, 1.0)
         _RimLightSoftness ("Softness", Range(0.0, 1.0)) = 0.6
         _MaxHDR ("Max HDR", Range(0.0, 10.0)) = 10.0
@@ -168,6 +172,8 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 half4 OSuv1: TEXCOORD10;
                 half4 OSuv2: TEXCOORD11;
                 
+                half4 positionSS: TEXCOORD12;
+                
                 half4 HDRColor: COLOR;
                 
                 UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -201,6 +207,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                     #endif
                 #endif
                 o.pos = UnityObjectToClipPos(v.vertex);
+                o.positionSS = ComputeScreenPos(o.pos);
                 
                 o.tex = TexCoords(v);
                 o.eyeVec.xyz = NormalizePerVertexNormal(posWorld.xyz - _WorldSpaceCameraPos);
@@ -235,8 +242,10 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 return o;
             }
             
-            half4 BuildinFragmentPBR(half3 diffColor, half3 specColor, half oneMinusReflectivity, half metallic, half smoothness, float3 normal, float3 viewDir, UnityLight light, UnityIndirect gi, half3 sssColor, half3 emission, half3 HDRColor)
+            half4 BuildinFragmentPBR(half3 diffColor, half3 specColor, half oneMinusReflectivity, half metallic, half smoothness, float3 normal, float3 viewDir, UnityLight light, UnityIndirect gi, half3 sssColor, half3 emission, half3 HDRColor, float4 positionSS)
             {
+                half2 screenUV = positionSS.xy / positionSS.w;
+                
                 float perceptualRoughness = 1.0 - smoothness;
                 float3 halfDir = Unity_SafeNormalize(float3(light.dir) + viewDir);
                 
@@ -311,8 +320,12 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 half grazingTerm = saturate(smoothness + (1 - oneMinusReflectivity));
                 half3 c1 = (gi.diffuse + light.color * diffuseTerm);
                 half3 c2 = specularTerm * light.color * FresnelTerm(specColor, lh);
-                half3 GI = surfaceReduction * gi.specular * FresnelLerp(specColor, grazingTerm, nv);
+                half3 GI = surfaceReduction * gi.specular * FresnelLerp(specColor, grazingTerm, nv);                
                 
+                half4 ssrColor = tex2D(_MobileSSPR_ColorRT, screenUV);
+                ssrColor.a *= saturate(dot(normal, half3(0.0, 1.0, 0.0))) * _SsprEnabled;
+                GI = lerp(GI, ssrColor.rgb, ssrColor.a * max(1.0-roughness, metallic));
+
                 half3 color = GI;
                 
                 half Ndot = 0.0;
@@ -375,9 +388,6 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             #define INIT_FRAGMENT(x) FragmentCommonData x = \
                 InitFragment(i.tex, i.eyeVec.xyz, IN_VIEWDIR4PARALLAX(i), i.tangentToWorldAndPackedData, IN_WORLDPOS(i));
 
-            
-            
-            
             half4 fragBase(VertexOutput i): SV_Target
             {
                 UNITY_APPLY_DITHER_CROSSFADE(i.pos.xy);
@@ -416,9 +426,8 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                     sssColor.rgb *= lerp(1.0, step_var.rgb, _Discoloration);
                     emission.rgb *= lerp(1.0.xxx, step_var.rgb, _Discoloration);
                 #endif
-                
-                
-                half4 c = BuildinFragmentPBR(s.diffColor, s.specColor, s.oneMinusReflectivity, s.metallic, s.smoothness, s.normalWorld, -s.eyeVec, gi.light, gi.indirect, sssColor, emission, i.HDRColor.rgb);
+                                
+                half4 c = BuildinFragmentPBR(s.diffColor, s.specColor, s.oneMinusReflectivity, s.metallic, s.smoothness, s.normalWorld, -s.eyeVec, gi.light, gi.indirect, sssColor, emission, i.HDRColor.rgb, i.positionSS);
                 
                 UNITY_EXTRACT_FOG_FROM_EYE_VEC(i);
                 UNITY_APPLY_FOG(_unity_fogCoord, c.rgb);
@@ -510,6 +519,8 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 half4 OSuv1: TEXCOORD10;
                 half4 OSuv2: TEXCOORD11;
                 
+                half4 positionSS: TEXCOORD12;
+                
                 UNITY_VERTEX_OUTPUT_STEREO
             };
             
@@ -527,7 +538,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 
                 float4 posWorld = mul(unity_ObjectToWorld, v.vertex);
                 o.pos = UnityObjectToClipPos(v.vertex);
-                
+
                 o.tex = TexCoords(v);
                 o.eyeVec.xyz = NormalizePerVertexNormal(posWorld.xyz - _WorldSpaceCameraPos);
                 o.posWorld = posWorld.xyz;
@@ -563,8 +574,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 UNITY_TRANSFER_FOG_COMBINED_WITH_EYE_VEC(o, o.pos);
                 return o;
             }
-            
-            
+                        
             half4 BuildinFragmentPBR(half3 diffColor, half3 specColor, half oneMinusReflectivity, half metallic, half smoothness, float3 normal, float3 viewDir, UnityLight light, UnityIndirect gi, half3 sssColor)
             {
                 float perceptualRoughness = 1.0 - smoothness;
@@ -697,10 +707,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             
             #define INIT_FRAGMENT_FWDADD(x) FragmentCommonData x = \
                 InitFragment(i.tex, i.eyeVec.xyz, IN_VIEWDIR4PARALLAX_FWDADD(i), i.tangentToWorldAndLightDir, IN_WORLDPOS_FWDADD(i));            
-
-            
-            
-            
+ 
             half4 fragAdd(VertexOutput i): SV_Target
             {
                 UNITY_APPLY_DITHER_CROSSFADE(i.pos.xy);
@@ -755,7 +762,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
         
         // ------------------------------------------------------------------
         //  Shadow rendering pass
-                
+        
         Pass
         {
             Name "ShadowCaster"
