@@ -67,7 +67,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
         [HDR]_EffectiveColor_Light ("_EffectiveColor", Color) = (1.0, 1.0, 1.0, 1.0)
         [HDR]_EffectiveColor_Dark ("_EffectiveColor Dark", Color) = (1.0, 1.0, 1.0, 1.0)
         _EffectiveDisslove ("Disslove", Range(0.0, 1.0)) = 1.0
-        _EffectiveMap ("Effective Map", 2D) = "white" { }
+        _EffectiveMap ("Effective Map", 2D) = "clear" { }
         [HDR]_XRayColor ("XRayColor", Color) = (.22, 1.95, 6.0, 1.0)
         
         [Toggle] _DissliveWithDiretion ("From Direction", float) = 0

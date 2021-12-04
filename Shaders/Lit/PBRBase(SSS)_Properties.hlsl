@@ -181,9 +181,17 @@ void GetDissloveInput(float4 vertex, float3 normal, half4 _ST, out half4 OSuv1, 
 
 half GetDissloveAlpha(VertexOutput i, half value, sampler2D _EffectiveMap, out half edgeArea, out half4 effectiveMask)
 {
-    effectiveMask = tex2D(_EffectiveMap, i.OSuv1.xy) * i.OSuvMask.x;
-    effectiveMask += tex2D(_EffectiveMap, i.OSuv1.zw) * i.OSuvMask.y;
-    effectiveMask += tex2D(_EffectiveMap, i.OSuv2.xy) * i.OSuvMask.z;
+    effectiveMask = 0.0;
+    half mask_x = tex2D(_EffectiveMap, i.OSuv1.xy).r;
+    half mask_y = tex2D(_EffectiveMap, i.OSuv1.zw).r;
+    half mask_z = tex2D(_EffectiveMap, i.OSuv2.xy).r;
+    effectiveMask += mask_x * i.OSuvMask.x;
+    effectiveMask += mask_y * i.OSuvMask.y;
+    effectiveMask += mask_z * i.OSuvMask.z;
+    
+    half overArea = saturate(effectiveMask - 1.0);
+    effectiveMask = lerp(effectiveMask, mask_x, overArea);
+    
     
     half directionExpend = 0.6;
     value *= lerp(1.0, directionExpend + 0.05, _DissliveWithDiretion);
