@@ -12,6 +12,7 @@ Shader "ZDShader/Build-in RP/XRay"
         [Toggle] _DissliveWithDiretion ("From Direction", float) = 0
         _DissliveAngle ("Angle", Range(-180, 180)) = 0
         [Toggle]_XRayEnabled ("Enabled", float) = 0
+
     }
     
     SubShader
@@ -35,6 +36,14 @@ Shader "ZDShader/Build-in RP/XRay"
         
         Pass
         {
+            Stencil
+            {
+                Ref 9
+                ReadMask 255
+                WriteMask 255
+                Comp Equal
+            }
+
             Name "XRayPass"
             
             CGPROGRAM
