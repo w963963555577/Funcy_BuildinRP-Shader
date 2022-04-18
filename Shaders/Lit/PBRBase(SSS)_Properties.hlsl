@@ -172,10 +172,10 @@ fixed3 AlbedoHSV(fixed3 albedo)
 
 void GetDissloveInput(float4 vertex, float3 normal, half4 _ST, out half4 OSuv1, out half4 OSuv2, out half3 OSuvMask)
 {
-    OSuv1.xy = vertex.yz * _ST.xy + _ST.zw;
-    OSuv1.zw = vertex.xz * _ST.xy + _ST.zw;
-    OSuv2.xy = vertex.xy * _ST.xy + _ST.zw;
-    OSuv2.zw = rotate2D(vertex.yz, 0.0, -_DissliveAngle * 0.0174532925194444) * 0.5;
+    OSuv1.xy = vertex.zx * _ST.xy + _ST.zw;
+    OSuv1.zw = vertex.yx * _ST.xy + _ST.zw;
+    OSuv2.xy = vertex.yz * _ST.xy + _ST.zw;
+    OSuv2.zw = rotate2D(vertex.zx * float2(1.0, -1.0), 0.0, _DissliveAngle * 0.0174532925194444) * 0.5;
     OSuvMask.xyz = half3(abs(dot(half3(1, 0, 0), normal)), abs(dot(half3(0, 1, 0), normal)), abs(dot(half3(0, 0, 1), normal)));
 }
 
