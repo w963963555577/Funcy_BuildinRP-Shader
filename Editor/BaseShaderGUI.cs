@@ -83,14 +83,14 @@ namespace UnityEditor
         MaterialProperty bumpMap = null;
         MaterialProperty occlusionStrength = null;
         MaterialProperty occlusionMap = null;
-        MaterialProperty heigtMapScale = null;
-        MaterialProperty heightMap = null;
+        //MaterialProperty heigtMapScale = null;
+        //MaterialProperty heightMap = null;
         MaterialProperty emissionColorForRendering = null;
         MaterialProperty emissionMap = null;
-        MaterialProperty detailMask = null;
-        MaterialProperty detailAlbedoMap = null;
-        MaterialProperty detailNormalMapScale = null;
-        MaterialProperty detailNormalMap = null;
+        //MaterialProperty detailMask = null;
+        //MaterialProperty detailAlbedoMap = null;
+        //MaterialProperty detailNormalMapScale = null;
+        //MaterialProperty detailNormalMap = null;
         MaterialProperty uvSetSecondary = null;
 
         public MaterialEditor m_MaterialEditor;
@@ -151,16 +151,16 @@ namespace UnityEditor
             reflections = FindProperty("_GlossyReflections", props, false);
             bumpScale = FindProperty("_BumpScale", props);
             bumpMap = FindProperty("_BumpMap", props);
-            heigtMapScale = FindProperty("_Parallax", props);
-            heightMap = FindProperty("_ParallaxMap", props);
+            //heigtMapScale = FindProperty("_Parallax", props);
+            //heightMap = FindProperty("_ParallaxMap", props);
             occlusionStrength = FindProperty("_OcclusionStrength", props);
             occlusionMap = FindProperty("_OcclusionMap", props);
             emissionColorForRendering = FindProperty("_EmissionColor", props);
             emissionMap = FindProperty("_EmissionMap", props);
-            detailMask = FindProperty("_DetailMask", props);
-            detailAlbedoMap = FindProperty("_DetailAlbedoMap", props);
-            detailNormalMapScale = FindProperty("_DetailNormalMapScale", props);
-            detailNormalMap = FindProperty("_DetailNormalMap", props);
+            //detailMask = FindProperty("_DetailMask", props);
+            //detailAlbedoMap = FindProperty("_DetailAlbedoMap", props);
+            //detailNormalMapScale = FindProperty("_DetailNormalMapScale", props);
+            //detailNormalMap = FindProperty("_DetailNormalMap", props);
             uvSetSecondary = FindProperty("_UVSec", props);
         }
 
@@ -269,10 +269,10 @@ namespace UnityEditor
                     DoAlbedoArea(material);
                     DoSpecularMetallicArea();
                     DoNormalArea();
-                    m_MaterialEditor.TexturePropertySingleLine(Styles.heightMapText, heightMap, heightMap.textureValue != null ? heigtMapScale : null);
-                    m_MaterialEditor.TexturePropertySingleLine(Styles.occlusionText, occlusionMap, occlusionMap.textureValue != null ? occlusionStrength : null);
+                    //m_MaterialEditor.TexturePropertySingleLine(Styles.heightMapText, heightMap, heightMap.textureValue != null ? heigtMapScale : null);
+                    //m_MaterialEditor.TexturePropertySingleLine(Styles.occlusionText, occlusionMap, occlusionMap.textureValue != null ? occlusionStrength : null);
                     m_MaterialEditor.ShaderProperty(occlusionStrength, occlusionStrength.displayName);
-                    m_MaterialEditor.TexturePropertySingleLine(Styles.detailMaskText, detailMask);
+                    //m_MaterialEditor.TexturePropertySingleLine(Styles.detailMaskText, detailMask);
                     DoEmissionArea(material);
                     EditorGUI.BeginChangeCheck();
                     m_MaterialEditor.TextureScaleOffsetProperty(albedoMap);
@@ -287,7 +287,7 @@ namespace UnityEditor
 
                     GUILayout.Space(10);
                 });
-
+                /*
                 DrawArea("Secondary Inputs", () =>
                 {
                     // Secondary properties
@@ -299,7 +299,7 @@ namespace UnityEditor
 
                     GUILayout.Space(10);
                 });
-
+                */
             }
 
             if (EditorGUI.EndChangeCheck())
@@ -511,7 +511,7 @@ namespace UnityEditor
                 SetKeyword(material, "_SPECGLOSSMAP", material.GetTexture("_SpecGlossMap"));
             else if (workflowMode == WorkflowMode.Metallic)
                 SetKeyword(material, "_METALLICGLOSSMAP", material.GetTexture("_MetallicGlossMap"));
-            SetKeyword(material, "_PARALLAXMAP", material.GetTexture("_ParallaxMap"));
+            //SetKeyword(material, "_PARALLAXMAP", material.GetTexture("_ParallaxMap"));
             SetKeyword(material, "_DETAIL_MULX2", material.GetTexture("_DetailAlbedoMap") || material.GetTexture("_DetailNormalMap"));
 
             // A material's GI flag internally keeps track of whether emission is enabled at all, it's enabled but has no effect

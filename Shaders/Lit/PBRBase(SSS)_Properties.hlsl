@@ -36,11 +36,6 @@ sampler2D _MobileSSPR_ColorRT;
 sampler2D _SubsurfaceMap;
 sampler2D _EffectiveMap;
 
-half saturate_good_performace(half t)
-{
-    return min(max(t, 0.0), 1.0);
-}
-
 half smoothstepBetterPerformace(half edge0, half edge1, half x, half d)
 {
     half t = saturate((x - edge0) * d);
@@ -75,7 +70,7 @@ fixed3 RGB2HSV(fixed3 c)
     fixed4 q = lerp(fixed4(p.xyw, c.r), fixed4(c.r, p.yzx), step(p.x, c.r));
     
     fixed d = q.x - min(q.w, q.y);
-    fixed e = 1.0e-10;
+    fixed e = 1.0e-4;
     return fixed3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
 }
 
