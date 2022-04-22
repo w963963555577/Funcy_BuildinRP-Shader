@@ -83,13 +83,7 @@ fixed3 HSV2RGB(fixed3 c)
 
 fixed3 AdjustContrast(fixed3 color, fixed contrast)
 {
-    #if !UNITY_COLORSPACE_GAMMA
-        color = LinearToGammaSpace(color);
-    #endif
-    color = saturate(lerp(fixed3(0.5, 0.5, 0.5), color, contrast));
-    #if !UNITY_COLORSPACE_GAMMA
-        color = GammaToLinearSpace(color);
-    #endif
+    color = saturate(lerp(fixed3(0.214, 0.214, 0.214), color, contrast * contrast));
     return color;
 }
 
@@ -100,6 +94,14 @@ fixed3 AlbedoHSV(fixed3 albedo)
     hsv.y *= _AlbedoHSV.y;
     hsv.z *= _AlbedoHSV.z;
     return HSV2RGB(hsv);
+}
+fixed3 D_GGX(fixed roughness, fixed HdN, fixed LdH2)
+{
+    fixed a = roughness;
+    fixed a2 = a * a;
+    fixed normalizationTerm = a * 4.0 + 2.0;
+    fixed d = (HdN * a2 - HdN) * HdN + 1;
+    return a2 / (d * d * max(0.1, LdH2) * normalizationTerm);
 }
 
 #if _DiscolorationSystem
@@ -132,36 +134,6 @@ fixed3 AlbedoHSV(fixed3 albedo)
         
         fixed hdr = max(max(color.r, color.g), color.b) ;
         color.a = hdr - 1.0;
-    }
-#endif
-
-#if IS_LITPASS
-    // Calculates the subsurface light radiating out from the current fragment. This is a simple approximation using wrapped lighting.
-    // Note: This does not use distance attenuation, as it is intented to be used with a sun light.
-    // Note: This does not subtract out cast shadows (light.shadowAttenuation), as it is intended to be used on non-shadowed objects. (for now)
-    half3 LightingSubsurface(UnityLight light, half3 normalWS, half3 subsurfaceColor, half subsurfaceRadius, out half NdotL)
-    {
-        // Calculate normalized wrapped lighting. This spreads the light without adding energy.
-        // This is a normal lambertian lighting calculation (using N dot L), but warping NdotL
-        // to wrap the light further around an object.
-        //
-        // A normalization term is applied to make sure we do not add energy.
-        // http://www.cim.mcgill.ca/~derek/files/jgt_wrap.pdf
-        
-        NdotL = dot(normalWS, light.dir);
-        half alpha = subsurfaceRadius;
-        //half theta_m = acos(-alpha); // boundary of the lighting function
-        
-        half theta = max(0, NdotL + alpha) - alpha;
-        half normalization_jgt = (2 + alpha) / (2 * (1 + alpha));
-        half wrapped_jgt = (pow(((theta + alpha) / (1 + alpha)), 1.0 + alpha)) * normalization_jgt;
-        
-        //half wrapped_valve = 0.25 * (NdotL + 1) * (NdotL + 1);
-        //half wrapped_simple = (NdotL + alpha) / (1 + alpha);
-        
-        half3 subsurface_radiance = subsurfaceColor * wrapped_jgt;
-        
-        return subsurface_radiance;
     }
 #endif
 

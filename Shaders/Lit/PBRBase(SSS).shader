@@ -269,16 +269,9 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 float D = GGXTerm(nh, roughness);
                 
                 float specularTerm = V * D * UNITY_PI; // Torrance-Sparrow model, Fresnel is applied later
-                
-                #ifdef UNITY_COLORSPACE_GAMMA
-                    specularTerm = sqrt(max(1e-4h, specularTerm));
-                #endif
-                
+
                 // specularTerm * nl can be NaN on Metal in some cases, use max() to make sure it's a sane value
                 specularTerm = max(0, specularTerm * nl);
-                #if defined(_SPECULARHIGHLIGHTS_OFF)
-                    specularTerm = 0.0;
-                #endif
                 
                 // surfaceReduction = Int D(NdotH) * NdotH * Id(NdotL>0) dH = 1/(roughness^2+1)
                 half surfaceReduction;
@@ -289,7 +282,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 #endif
                 
                 // To provide true Lambert lighting, we need to be able to kill specular completely.
-                specularTerm *= any(specColor) ? 1.0: 0.0;
+                //specularTerm *= any(specColor) ? 1.0: 0.0;
                 
                 half grazingTerm = saturate(smoothness + (1 - oneMinusReflectivity));
                 half3 c1 = (gi.diffuse + light.color * diffuseTerm);
@@ -302,7 +295,6 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
 
                 half3 color = GI;
                 
-                half Ndot = 0.0;
                 half3 mainLightContribution = c1 * diffColor + c2;
                 
                 color += mainLightContribution;
@@ -311,7 +303,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 half _FlashArea = smoothstep(0.2, 1.0, 1.0 - max(0, dot(normal, viewDir)));
                 
                 half fresnel = smoothstep(_RimLightSoftness, 1.0, 1.0 - saturate(dot(normal, viewDir)));
-                half3 rimLighting = gi.diffuse * Ndot * fresnel * 1.0 * _RimLightColor;
+                half3 rimLighting = gi.diffuse * nl * fresnel * 1.0 * _RimLightColor;
                 
                 color += rimLighting;
                 //alpha = max(fresnel * _RimLightColor.a, alpha);
@@ -502,12 +494,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 float4 tangentToWorldAndLightDir[3]: TEXCOORD2;    // [3x3:tangentToWorld | 1x3:lightDir]
                 float3 posWorld: TEXCOORD5;
                 UNITY_LIGHTING_COORDS(6, 7)
-                /*
-                // next ones would not fit into SM2.0 limits, but they are always for SM3.0+
-                #if defined(_PARALLAXMAP)
-                    half3 viewDirForParallax: TEXCOORD8;
-                #endif
-                */
+                
                 half3 OSuvMask: TEXCOORD9;
                 half4 OSuv1: TEXCOORD10;
                 half4 OSuv2: TEXCOORD11;
@@ -558,12 +545,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 o.tangentToWorldAndLightDir[0].w = lightDir.x;
                 o.tangentToWorldAndLightDir[1].w = lightDir.y;
                 o.tangentToWorldAndLightDir[2].w = lightDir.z;
-                /*
-                #ifdef _PARALLAXMAP
-                    TANGENT_SPACE_ROTATION;
-                    o.viewDirForParallax = mul(rotation, ObjSpaceViewDir(v.vertex));
-                #endif
-                */
+                
                 UNITY_TRANSFER_FOG_COMBINED_WITH_EYE_VEC(o, o.pos);
                 return o;
             }
@@ -600,16 +582,9 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 float D = GGXTerm(nh, roughness);
                 float specularTerm = V * D * UNITY_PI; // Torrance-Sparrow model, Fresnel is applied later
                 
-                #ifdef UNITY_COLORSPACE_GAMMA
-                    specularTerm = sqrt(max(1e-4h, specularTerm));
-                #endif
-                
                 // specularTerm * nl can be NaN on Metal in some cases, use max() to make sure it's a sane value
                 specularTerm = max(0, specularTerm * nl);
-                #if defined(_SPECULARHIGHLIGHTS_OFF)
-                    specularTerm = 0.0;
-                #endif
-                
+
                 // surfaceReduction = Int D(NdotH) * NdotH * Id(NdotL>0) dH = 1/(roughness^2+1)
                 half surfaceReduction;
                 #ifdef UNITY_COLORSPACE_GAMMA
@@ -619,7 +594,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 #endif
                 
                 // To provide true Lambert lighting, we need to be able to kill specular completely.
-                specularTerm *= any(specColor) ? 1.0: 0.0;
+                //specularTerm *= any(specColor) ? 1.0: 0.0;
                 
                 half grazingTerm = saturate(smoothness + (1 - oneMinusReflectivity));
                 half3 c1 = (gi.diffuse + light.color * diffuseTerm);
@@ -627,10 +602,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 half3 GI = surfaceReduction * gi.specular * FresnelLerp(specColor, grazingTerm, nv);
                 
                 half3 color = GI;
-                
-                half Ndot = 0.0;
                 half3 mainLightContribution = c1 * diffColor + c2;
-                
                 color += mainLightContribution;
                 
                 
