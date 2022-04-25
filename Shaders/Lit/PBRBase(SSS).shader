@@ -307,7 +307,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 
                 color += rimLighting;
                 //alpha = max(fresnel * _RimLightColor.a, alpha);
-                color.rgb = clamp(color, 0.0.xxxx, (max(gi.diffuse, GI)) * _MaxHDR) + _FlashArea * HDRColor;
+                color.rgb = color + _FlashArea * HDRColor;
                 return half4(color, 1.0);
             }
             
