@@ -31,7 +31,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
         _EmissionColor ("Color", Color) = (0, 0, 0)
         _EmissionMap ("Emission", 2D) = "white" { }
 
-        _SubsurfaceScattering ("Scatter", Range(0, 1)) = 0.0
+        _SubsurfaceScattering ("Scatter", Range(0, 1)) = 0.5
         _SubsurfaceRadius ("Radius", Float) = 2.0
         [HDR]_SubsurfaceColor ("Color", Color) = (1, 1, 1)
         _SubsurfaceMap ("SSS Map", 2D) = "White" { }
@@ -234,8 +234,34 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 UNITY_TRANSFER_FOG_COMBINED_WITH_EYE_VEC(o, o.pos);
                 return o;
             }
-            
-            half4 BuildinFragmentPBR(half3 diffColor, half3 specColor, half oneMinusReflectivity, half metallic, half smoothness, float3 normal, float3 viewDir, UnityLight light, UnityIndirect gi, half3 emission, half3 HDRColor, float4 positionSS)
+            // Calculates the subsurface light radiating out from the current fragment. This is a simple approximation using wrapped lighting.
+            // Note: This does not use distance attenuation, as it is intented to be used with a sun light.
+            // Note: This does not subtract out cast shadows (light.shadowAttenuation), as it is intended to be used on non-shadowed objects. (for now)
+            half3 LightingSubsurface(UnityLight light, half3 normalWS, half3 subsurfaceColor, half subsurfaceRadius, out half NdotL)
+            {
+                // Calculate normalized wrapped lighting. This spreads the light without adding energy.
+                // This is a normal lambertian lighting calculation (using N dot L), but warping NdotL
+                // to wrap the light further around an object.
+                //
+                // A normalization term is applied to make sure we do not add energy.
+                // http://www.cim.mcgill.ca/~derek/files/jgt_wrap.pdf
+                
+                NdotL = dot(normalWS, light.dir);
+                half alpha = subsurfaceRadius;
+                //half theta_m = acos(-alpha); // boundary of the lighting function
+                
+                half theta = max(0, NdotL + alpha) - alpha;
+                half normalization_jgt = (2 + alpha) / (2 * (1 + alpha));
+                half wrapped_jgt = (pow(((theta + alpha) / (1 + alpha)), 1.0 + alpha)) * normalization_jgt;
+                
+                //half wrapped_valve = 0.25 * (NdotL + 1) * (NdotL + 1);
+                //half wrapped_simple = (NdotL + alpha) / (1 + alpha);
+                
+                half3 subsurface_radiance = subsurfaceColor * wrapped_jgt;
+                
+                return subsurface_radiance;
+            }
+            half4 BuildinFragmentPBR(half3 diffColor, half3 specColor, half oneMinusReflectivity, half metallic, half smoothness, float3 normal, float3 viewDir, UnityLight light, UnityIndirect gi, half3 sssColor, half3 emission, half3 HDRColor, float4 positionSS)
             {
                 half2 screenUV = positionSS.xy / positionSS.w;
                 
@@ -296,8 +322,9 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 half3 color = GI;
                 
                 half3 mainLightContribution = c1 * diffColor + c2;
+                half3 subsurfaceContribution = LightingSubsurface(light, normal, sssColor, _SubsurfaceRadius, nl);
                 
-                color += mainLightContribution;
+                color += lerp(mainLightContribution, subsurfaceContribution, _SubsurfaceScattering * (1.0 - metallic));
                 color += emission;
                 
                 half _FlashArea = smoothstep(0.2, 1.0, 1.0 - max(0, dot(normal, viewDir)));
@@ -381,7 +408,8 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
 				#else
 					half3 L = _WorldSpaceLightPos0.xyz;
 				#endif
-                half3 sssColor = half3(1.0, 0.2, 0.01);
+                half3 sssColor = tex2D(_SubsurfaceMap, i.tex.xy).rgb * _SubsurfaceColor.rgb;
+                /*
                 half sLevel = 1.0 - s.metallic;
 				sLevel = 1.0 - sLevel*sLevel*sLevel;
 				float3 sssLevel = sssColor * sLevel;
@@ -397,6 +425,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
 					smoothstep(-sOff.b, radius + sOff.b, sssLdn.b)
 				);
                 difLit = lerp(1.0.xxx, difLit, _SubsurfaceScattering);
+                */
                 #if _DiscolorationSystem
                     half4 step_var ;
                     half blackArea;
@@ -411,8 +440,12 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                     s.diffColor.rgb *= lerp(1.0.xxx, step_var.rgb, _Discoloration);
                 #endif         
                 half3 emission = Emission(i.tex.xy);
-                
-                half4 c = BuildinFragmentPBR(s.diffColor * difLit, s.specColor, s.oneMinusReflectivity, s.metallic, s.smoothness, s.normalWorld, -s.eyeVec, gi.light, gi.indirect, emission, i.HDRColor.rgb, i.positionSS);
+                sssColor = lerp(s.diffColor, sssColor, min(_AlbedoHSV.z, _AlbedoHSV.y));
+                #if _DiscolorationSystem
+                    sssColor.rgb *= lerp(1.0, step_var.rgb, _Discoloration);
+                    emission.rgb *= lerp(1.0.xxx, step_var.rgb, _Discoloration);
+                #endif
+                half4 c = BuildinFragmentPBR(s.diffColor, s.specColor, s.oneMinusReflectivity, s.metallic, s.smoothness, s.normalWorld, -s.eyeVec, gi.light, gi.indirect, sssColor, emission, i.HDRColor.rgb, i.positionSS);
                 
                 UNITY_EXTRACT_FOG_FROM_EYE_VEC(i);
                 UNITY_APPLY_FOG(_unity_fogCoord, c.rgb);
@@ -549,8 +582,34 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 UNITY_TRANSFER_FOG_COMBINED_WITH_EYE_VEC(o, o.pos);
                 return o;
             }
-                        
-            half4 BuildinFragmentPBR(half3 diffColor, half3 specColor, half oneMinusReflectivity, half metallic, half smoothness, float3 normal, float3 viewDir, UnityLight light, UnityIndirect gi)
+            // Calculates the subsurface light radiating out from the current fragment. This is a simple approximation using wrapped lighting.
+            // Note: This does not use distance attenuation, as it is intented to be used with a sun light.
+            // Note: This does not subtract out cast shadows (light.shadowAttenuation), as it is intended to be used on non-shadowed objects. (for now)
+            half3 LightingSubsurface(UnityLight light, half3 normalWS, half3 subsurfaceColor, half subsurfaceRadius, out half NdotL)
+            {
+                // Calculate normalized wrapped lighting. This spreads the light without adding energy.
+                // This is a normal lambertian lighting calculation (using N dot L), but warping NdotL
+                // to wrap the light further around an object.
+                //
+                // A normalization term is applied to make sure we do not add energy.
+                // http://www.cim.mcgill.ca/~derek/files/jgt_wrap.pdf
+                
+                NdotL = dot(normalWS, light.dir);
+                half alpha = subsurfaceRadius;
+                //half theta_m = acos(-alpha); // boundary of the lighting function
+                
+                half theta = max(0, NdotL + alpha) - alpha;
+                half normalization_jgt = (2 + alpha) / (2 * (1 + alpha));
+                half wrapped_jgt = (pow(((theta + alpha) / (1 + alpha)), 1.0 + alpha)) * normalization_jgt;
+                
+                //half wrapped_valve = 0.25 * (NdotL + 1) * (NdotL + 1);
+                //half wrapped_simple = (NdotL + alpha) / (1 + alpha);
+                
+                half3 subsurface_radiance = subsurfaceColor * wrapped_jgt;
+                
+                return subsurface_radiance;
+            }
+            half4 BuildinFragmentPBR(half3 diffColor, half3 specColor, half oneMinusReflectivity, half metallic, half smoothness, float3 normal, float3 viewDir, UnityLight light, UnityIndirect gi, half3 sssColor)
             {
                 float perceptualRoughness = 1.0 - smoothness;
                 float3 halfDir = Unity_SafeNormalize(float3(light.dir) + viewDir);
@@ -603,8 +662,9 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 
                 half3 color = GI;
                 half3 mainLightContribution = c1 * diffColor + c2;
-                color += mainLightContribution;
+                 half3 subsurfaceContribution = LightingSubsurface(light, normal, sssColor, _SubsurfaceRadius, nl);
                 
+                color += lerp(mainLightContribution, subsurfaceContribution, _SubsurfaceScattering * (1.0 - metallic));
                 
                 return half4(color, 1);
             }
@@ -672,7 +732,8 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 half2 occAndDiscoloration = tex2D(_OcclusionMap, i.tex.xy).gb;
                 half3 wN_S = normalize((N*blurN.z) + (B*blurN.y) + (T*blurN.x));
                 half3 L = light.dir;
-                half3 sssColor = half3(1.0, 0.2, 0.01);
+                half3 sssColor = tex2D(_SubsurfaceMap, i.tex.xy).rgb * _SubsurfaceColor.rgb;
+                /*
                 half sLevel = 1.0 - s.metallic;
 				sLevel = 1.0 - sLevel * sLevel*sLevel;
 				float3 sssLevel = sssColor * sLevel;
@@ -688,6 +749,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
 					smoothstep(-sOff.b, radius + sOff.b, sssLdn.b)
 				);
                 difLit = lerp(1.0.xxx, difLit, _SubsurfaceScattering);
+                */
                 #if _DiscolorationSystem
                     half4 step_var ;
                     half blackArea;
@@ -701,8 +763,12 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                     
                     s.diffColor.rgb *= lerp(1.0.xxx, step_var.rgb, _Discoloration);
                 #endif
-
-                half4 c = BuildinFragmentPBR(s.diffColor*difLit, s.specColor, s.oneMinusReflectivity, s.metallic, s.smoothness, s.normalWorld, -s.eyeVec, light, noIndirect);
+                sssColor = lerp(s.diffColor, sssColor, min(_AlbedoHSV.z, _AlbedoHSV.y));
+                #if _DiscolorationSystem
+                    sssColor.rgb *= lerp(1.0.xxx, step_var.rgb, _Discoloration);
+                    
+                #endif
+                half4 c = BuildinFragmentPBR(s.diffColor, s.specColor, s.oneMinusReflectivity, s.metallic, s.smoothness, s.normalWorld, -s.eyeVec, light, noIndirect, sssColor);
                 
                 UNITY_EXTRACT_FOG_FROM_EYE_VEC(i);
                 UNITY_APPLY_FOG_COLOR(_unity_fogCoord, c.rgb, half4(0, 0, 0, 0)); // fog towards black in additive pass
