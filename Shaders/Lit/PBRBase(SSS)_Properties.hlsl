@@ -29,6 +29,10 @@ half _EffectiveDisslove;
 half _XRayEnabled;
 half4 _XRayColor;
 half _DissliveWithDiretion;
+half _ObjectLeft;
+half _ObjectUp;
+half4 _NegativeDiretionLeft;
+half4 _NegativeDiretionUp;
 half _DissliveAngle;
 
 sampler2D _MobileSSPR_ColorRT;
@@ -55,8 +59,8 @@ float2 rotate2D(float2 uv, half2 pivot, half angle)
     float s = sin(angle);
     return mul(uv - pivot, float2x2(c, -s, s, c)) + pivot;
 }
-
-half GetColorHDRValue(half3 color)
+//Unity
+half GetUnityHDRIntensityValue(half3 color)
 {
     half scaleFactor = 191.0 / max(color.r, max(color.b, color.g));
     half hdr = log(255.0 / scaleFactor) * 1.44269504089;//1.44269504089 = 1.0 / log(2.0)
@@ -105,7 +109,6 @@ fixed3 D_GGX(fixed roughness, fixed HdN, fixed LdH2)
 }
 
 #if _DiscolorationSystem
-    
     void Step6Color(fixed gray, out fixed4 color, out fixed blackArea, out fixed skinArea)
     {
         fixed gray_oneminus = (1.0 - gray);
@@ -137,13 +140,54 @@ fixed3 D_GGX(fixed roughness, fixed HdN, fixed LdH2)
     }
 #endif
 
+#if IS_LITPASS
+    // Calculates the subsurface light radiating out from the current fragment. This is a simple approximation using wrapped lighting.
+    // Note: This does not use distance attenuation, as it is intented to be used with a sun light.
+    // Note: This does not subtract out cast shadows (light.shadowAttenuation), as it is intended to be used on non-shadowed objects. (for now)
+    half3 LightingSubsurface(UnityLight light, half3 normalWS, half3 subsurfaceColor, half subsurfaceRadius, out half NdotL)
+    {
+        // Calculate normalized wrapped lighting. This spreads the light without adding energy.
+        // This is a normal lambertian lighting calculation (using N dot L), but warping NdotL
+        // to wrap the light further around an object.
+        //
+        // A normalization term is applied to make sure we do not add energy.
+        // http://www.cim.mcgill.ca/~derek/files/jgt_wrap.pdf
+        
+        NdotL = dot(normalWS, light.dir);
+        half alpha = subsurfaceRadius;
+        //half theta_m = acos(-alpha); // boundary of the lighting function
+        
+        half theta = max(0, NdotL + alpha) - alpha;
+        half normalization_jgt = (2 + alpha) / (2 * (1 + alpha));
+        half wrapped_jgt = (pow(((theta + alpha) / (1 + alpha)), 1.0 + alpha)) * normalization_jgt;
+        
+        //half wrapped_valve = 0.25 * (NdotL + 1) * (NdotL + 1);
+        //half wrapped_simple = (NdotL + alpha) / (1 + alpha);
+        
+        half3 subsurface_radiance = subsurfaceColor * wrapped_jgt;
+        
+        return subsurface_radiance;
+    }
+#endif
 void GetDissloveInput(float4 vertex, float3 normal, half4 _ST, out half4 OSuv1, out half4 OSuv2, out half3 OSuvMask)
 {
-    OSuv1.xy = vertex.zx * _ST.xy + _ST.zw;
-    OSuv1.zw = vertex.yx * _ST.xy + _ST.zw;
-    OSuv2.xy = vertex.yz * _ST.xy + _ST.zw;
-    OSuv2.zw = rotate2D(vertex.zx * float2(1.0, -1.0), 0.0, _DissliveAngle * 0.0174532925194444) * 0.5;
-    OSuvMask.xyz = half3(abs(dot(half3(1, 0, 0), normal)), abs(dot(half3(0, 1, 0), normal)), abs(dot(half3(0, 0, 1), normal)));
+    _ObjectLeft = fmod(_ObjectLeft, 3.0);
+    _ObjectUp = fmod(_ObjectUp, 3.0);
+    half3x3 identity = half3x3(half3(1.0, 0.0, 0.0), half3(0.0, 1.0, 0.0), half3(0.0, 0.0, 1.0));
+    //Projection UV Texcoord
+    half3 maskDir = mul(identity, vertex.xyz);
+    half3 leftDir = maskDir * _NegativeDiretionLeft.xyz;
+    half3 upDir = maskDir * _NegativeDiretionUp.xyz;
+    half trueLeft = leftDir.x * saturate(1.0 - _ObjectLeft) + leftDir.y * saturate(1.0 - abs(_ObjectLeft - 1.0)) + leftDir.z * saturate(1.0 - abs(_ObjectLeft - 2.0)) + _ST.z;
+    half trueUp = upDir.x * saturate(1.0 - _ObjectUp) + upDir.y * saturate(1.0 - abs(_ObjectUp - 1.0)) + upDir.z * saturate(1.0 - abs(_ObjectUp - 2.0)) + _ST.w;
+    
+    OSuv1.xy = maskDir.xy * _ST.xy + _ST.zw;
+    OSuv1.zw = maskDir.xz * _ST.xy + _ST.zw;
+    OSuv2.xy = maskDir.yz * _ST.xy + _ST.zw;
+    
+    //Disslove Direction
+    OSuv2.zw = rotate2D(half2(trueLeft, trueUp) * float2(1.0, 1.0), 0.0, _DissliveAngle * 0.0174532925194444) * 0.5;
+    OSuvMask.xyz = abs(mul(identity, normal));
 }
 
 half GetDissloveAlpha(VertexOutput i, half value, sampler2D _EffectiveMap, out half edgeArea, out half4 effectiveMask)
@@ -158,7 +202,6 @@ half GetDissloveAlpha(VertexOutput i, half value, sampler2D _EffectiveMap, out h
     
     half overArea = saturate(effectiveMask - 1.0);
     effectiveMask = lerp(effectiveMask, mask_x, overArea);
-    
     
     half directionExpend = 0.6;
     value *= lerp(1.0, directionExpend + 0.05, _DissliveWithDiretion);

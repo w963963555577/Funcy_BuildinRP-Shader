@@ -65,7 +65,12 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
         [HDR]_XRayColor ("XRayColor", Color) = (.22, 1.95, 6.0, 1.0)
         
         [Toggle] _DissliveWithDiretion ("From Direction", float) = 0
+        [Enum(X, 0, Y, 1, Z, 2, negative X, 3, negative Y, 4, negative Z, 5)]_ObjectLeft ("Object Left", Float) = 1
+        [Enum(X, 0, Y, 1, Z, 2, negative X, 3, negative Y, 4, negative Z, 5)]_ObjectUp ("Object Up", Float) = 2
+        _NegativeDiretionLeft ("__NegativeDiretionLeft", Vector) = (1, 1, 1, 0)
+        _NegativeDiretionUp ("__NegativeDiretionLeft", Vector) = (1, 1, 1, 0)
         _DissliveAngle ("Angle", Range(-180, 180)) = 0
+        [Toggle(_DebugDissloveMask)] _DebugDissloveMask ("Debug Disslove Mask", float) = 0
         [Toggle]_XRayEnabled ("Enabled", float) = 0
         
         [Enum(UV0, 0, UV1, 1)] _UVSec ("UV Set for secondary textures", Float) = 0
@@ -81,7 +86,6 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
     {
         Tags { "RenderType" = "Opaque" "PerformanceChecks" = "False" }
         LOD 300
-        
         
         UsePass "ZDShader/Build-in RP/XRay/XRayPass"
         // ------------------------------------------------------------------
@@ -138,8 +142,9 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             //#pragma multi_compile_instancing
             
             #define _DiscolorationSystem 1
-            // Uncomment the following line to enable dithering LOD crossfade. Note: there are more in the file to uncomment for other passes.
-            //#pragma multi_compile _ LOD_FADE_CROSSFADE
+            #ifdef SHADER_API_D3D11
+                #pragma shader_feature_local _DebugDissloveMask
+            #endif
             
             #pragma vertex vertBase
             #pragma fragment fragBase
@@ -186,7 +191,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 
                 GetDissloveInput(v.vertex, v.normal, _EffectiveMap_ST, o.OSuv1, o.OSuv2, o.OSuvMask);
                 
-                o.HDRColor.rgb = GetColorHDRValue(_FlashingColor.rgb) * _FlashingColor.rgb;
+                o.HDRColor.rgb = GetUnityHDRIntensityValue(_FlashingColor.rgb) * _FlashingColor.rgb;
                 o.HDRColor.a = 1.0;
                 float4 posWorld = mul(unity_ObjectToWorld, v.vertex);
                 
@@ -237,30 +242,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             // Calculates the subsurface light radiating out from the current fragment. This is a simple approximation using wrapped lighting.
             // Note: This does not use distance attenuation, as it is intented to be used with a sun light.
             // Note: This does not subtract out cast shadows (light.shadowAttenuation), as it is intended to be used on non-shadowed objects. (for now)
-            half3 LightingSubsurface(UnityLight light, half3 normalWS, half3 subsurfaceColor, half subsurfaceRadius, out half NdotL)
-            {
-                // Calculate normalized wrapped lighting. This spreads the light without adding energy.
-                // This is a normal lambertian lighting calculation (using N dot L), but warping NdotL
-                // to wrap the light further around an object.
-                //
-                // A normalization term is applied to make sure we do not add energy.
-                // http://www.cim.mcgill.ca/~derek/files/jgt_wrap.pdf
-                
-                NdotL = dot(normalWS, light.dir);
-                half alpha = subsurfaceRadius;
-                //half theta_m = acos(-alpha); // boundary of the lighting function
-                
-                half theta = max(0, NdotL + alpha) - alpha;
-                half normalization_jgt = (2 + alpha) / (2 * (1 + alpha));
-                half wrapped_jgt = (pow(((theta + alpha) / (1 + alpha)), 1.0 + alpha)) * normalization_jgt;
-                
-                //half wrapped_valve = 0.25 * (NdotL + 1) * (NdotL + 1);
-                //half wrapped_simple = (NdotL + alpha) / (1 + alpha);
-                
-                half3 subsurface_radiance = subsurfaceColor * wrapped_jgt;
-                
-                return subsurface_radiance;
-            }
+            
             half4 BuildinFragmentPBR(half3 diffColor, half3 specColor, half oneMinusReflectivity, half metallic, half smoothness, float3 normal, float3 viewDir, UnityLight light, UnityIndirect gi, half3 sssColor, half3 emission, half3 HDRColor, float4 positionSS)
             {
                 half2 screenUV = positionSS.xy / positionSS.w;
@@ -381,6 +363,11 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
 
             half4 fragBase(VertexOutput i): SV_Target
             {
+                #ifdef SHADER_API_D3D11
+                    #ifdef _DebugDissloveMask
+                        return half4( i.OSuv2.zw, 0.0, 1.0);
+                    #endif
+                #endif
                 UNITY_APPLY_DITHER_CROSSFADE(i.pos.xy);
                 
                 INIT_FRAGMENT(s)
@@ -388,7 +375,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
 				half3 B = normalize(i.tangentToWorldAndPackedData[1].xyz);
 				half3 N = normalize(i.tangentToWorldAndPackedData[2].xyz);
                 half3 tN = UnpackScaleNormal(tex2Dbias(_BumpMap, half4(i.tex.xy, 0, 1.0)), _BumpScale);
-                half3 blurN = UnpackScaleNormal(tex2Dbias(_BumpMap, half4(i.tex.xy, 0, 3.0)), _BumpScale);
+                //half3 blurN = UnpackScaleNormal(tex2Dbias(_BumpMap, half4(i.tex.xy, 0, 3.0)), _BumpScale);
                 s.normalWorld = normalize((N*tN.z) + (B*tN.y) + (T*tN.x));
                 
                 UNITY_SETUP_INSTANCE_ID(i);
@@ -402,7 +389,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 half occlusion = LerpOneTo(occAndDiscoloration.x, _OcclusionStrength);
                 UnityGI gi = FragmentGI(s, occlusion, i.ambientOrLightmapUV, atten, mainLight);
  
-                half3 wN_S = normalize((N*blurN.z) + (B*blurN.y) + (T*blurN.x));
+                //half3 wN_S = normalize((N*blurN.z) + (B*blurN.y) + (T*blurN.x));
                 #ifndef USING_DIRECTIONAL_LIGHT
 					half3 L = mainLight.dir;
 				#else
@@ -509,7 +496,9 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
             #endif
             
             #define _DiscolorationSystem 1
-            
+            #ifdef SHADER_API_D3D11
+                #pragma shader_feature_local _DebugDissloveMask
+            #endif
             // Uncomment the following line to enable dithering LOD crossfade. Note: there are more in the file to uncomment for other passes.
             //#pragma multi_compile _ LOD_FADE_CROSSFADE
             
@@ -582,33 +571,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 UNITY_TRANSFER_FOG_COMBINED_WITH_EYE_VEC(o, o.pos);
                 return o;
             }
-            // Calculates the subsurface light radiating out from the current fragment. This is a simple approximation using wrapped lighting.
-            // Note: This does not use distance attenuation, as it is intented to be used with a sun light.
-            // Note: This does not subtract out cast shadows (light.shadowAttenuation), as it is intended to be used on non-shadowed objects. (for now)
-            half3 LightingSubsurface(UnityLight light, half3 normalWS, half3 subsurfaceColor, half subsurfaceRadius, out half NdotL)
-            {
-                // Calculate normalized wrapped lighting. This spreads the light without adding energy.
-                // This is a normal lambertian lighting calculation (using N dot L), but warping NdotL
-                // to wrap the light further around an object.
-                //
-                // A normalization term is applied to make sure we do not add energy.
-                // http://www.cim.mcgill.ca/~derek/files/jgt_wrap.pdf
-                
-                NdotL = dot(normalWS, light.dir);
-                half alpha = subsurfaceRadius;
-                //half theta_m = acos(-alpha); // boundary of the lighting function
-                
-                half theta = max(0, NdotL + alpha) - alpha;
-                half normalization_jgt = (2 + alpha) / (2 * (1 + alpha));
-                half wrapped_jgt = (pow(((theta + alpha) / (1 + alpha)), 1.0 + alpha)) * normalization_jgt;
-                
-                //half wrapped_valve = 0.25 * (NdotL + 1) * (NdotL + 1);
-                //half wrapped_simple = (NdotL + alpha) / (1 + alpha);
-                
-                half3 subsurface_radiance = subsurfaceColor * wrapped_jgt;
-                
-                return subsurface_radiance;
-            }
+            
             half4 BuildinFragmentPBR(half3 diffColor, half3 specColor, half oneMinusReflectivity, half metallic, half smoothness, float3 normal, float3 viewDir, UnityLight light, UnityIndirect gi, half3 sssColor)
             {
                 float perceptualRoughness = 1.0 - smoothness;
@@ -713,6 +676,11 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
  
             half4 fragAdd(VertexOutput i): SV_Target
             {
+                #ifdef SHADER_API_D3D11
+                    #ifdef _DebugDissloveMask
+                        return 0;
+                    #endif
+                #endif
                 UNITY_APPLY_DITHER_CROSSFADE(i.pos.xy);
                 
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
@@ -722,7 +690,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
 				half3 B = normalize(i.tangentToWorldAndLightDir[1].xyz);
 				half3 N = normalize(i.tangentToWorldAndLightDir[2].xyz);
                 half3 tN = UnpackScaleNormal(tex2Dbias(_BumpMap, half4(i.tex.xy, 0, 1.0)), _BumpScale);
-                half3 blurN = UnpackScaleNormal(tex2Dbias(_BumpMap, half4(i.tex.xy, 0, 3.0)), _BumpScale);
+                //half3 blurN = UnpackScaleNormal(tex2Dbias(_BumpMap, half4(i.tex.xy, 0, 3.0)), _BumpScale);
                 s.normalWorld = normalize((N*tN.z) + (B*tN.y) + (T*tN.x));
                 
                 UNITY_LIGHT_ATTENUATION(atten, i, s.posWorld)
@@ -730,7 +698,7 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
                 UnityIndirect noIndirect = ZeroIndirect();
                 
                 half2 occAndDiscoloration = tex2D(_OcclusionMap, i.tex.xy).gb;
-                half3 wN_S = normalize((N*blurN.z) + (B*blurN.y) + (T*blurN.x));
+                //half3 wN_S = normalize((N*blurN.z) + (B*blurN.y) + (T*blurN.x));
                 half3 L = light.dir;
                 half3 sssColor = tex2D(_SubsurfaceMap, i.tex.xy).rgb * _SubsurfaceColor.rgb;
                 /*

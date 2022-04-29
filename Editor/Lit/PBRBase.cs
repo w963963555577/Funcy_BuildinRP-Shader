@@ -44,8 +44,12 @@ namespace UnityEditor.Rendering.Funcy.BuildinRP.ShaderGUI
         MaterialProperty effectiveDisslove { get; set; }
         
         MaterialProperty dissliveWithDiretion { get; set; }
+        MaterialProperty objectLeft { get; set; }
+        MaterialProperty objectUp { get; set; }
         MaterialProperty dissliveAngle { get; set; }
-        
+        MaterialProperty debugDissloveMask { get; set; }
+        MaterialProperty negativeDiretionLeft { get; set; }
+        MaterialProperty negativeDiretionUp { get; set; }
 
         MaterialProperty xRayEnabled { get; set; }
         MaterialProperty xRayColor { get; set; }
@@ -100,7 +104,17 @@ namespace UnityEditor.Rendering.Funcy.BuildinRP.ShaderGUI
                     materialEditor.TextureScaleOffsetProperty(effectiveMap);
                     GUILayout.Space(10);
                     materialEditor.ShaderProperty(dissliveWithDiretion, dissliveWithDiretion.displayName);
-                    materialEditor.ShaderProperty(dissliveAngle, dissliveAngle.displayName);
+                    if (dissliveWithDiretion.floatValue != 0)
+                    {
+                        EditorGUI.indentLevel++;
+                        negativeDiretionLeft.vectorValue = new Vector4(objectLeft.floatValue == 3.0f ? -1 : 1, objectLeft.floatValue == 4.0f ? -1 : 1, objectLeft.floatValue == 5.0f ? -1 : 1, 0);
+                        negativeDiretionUp.vectorValue = new Vector4(objectUp.floatValue == 3.0f ? -1 : 1, objectUp.floatValue == 4.0f ? -1 : 1, objectUp.floatValue == 5.0f ? -1 : 1, 0);
+                        materialEditor.ShaderProperty(objectLeft, objectLeft.displayName);
+                        materialEditor.ShaderProperty(objectUp, objectUp.displayName);
+                        materialEditor.ShaderProperty(dissliveAngle, dissliveAngle.displayName);
+                        materialEditor.ShaderProperty(debugDissloveMask, debugDissloveMask.displayName);
+                        EditorGUI.indentLevel--;
+                    }
                 }
                 GUILayout.EndVertical();
                 GUILayout.Space(10);
