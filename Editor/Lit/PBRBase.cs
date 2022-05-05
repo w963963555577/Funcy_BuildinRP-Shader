@@ -44,6 +44,8 @@ namespace UnityEditor.Rendering.Funcy.BuildinRP.ShaderGUI
         MaterialProperty effectiveDisslove { get; set; }
         
         MaterialProperty dissliveWithDiretion { get; set; }
+        MaterialProperty dissloveSpread { get; set; }
+        
         MaterialProperty objectLeft { get; set; }
         MaterialProperty objectUp { get; set; }
         MaterialProperty dissliveAngle { get; set; }
@@ -111,6 +113,7 @@ namespace UnityEditor.Rendering.Funcy.BuildinRP.ShaderGUI
                         negativeDiretionUp.vectorValue = new Vector4(objectUp.floatValue == 3.0f ? -1 : 1, objectUp.floatValue == 4.0f ? -1 : 1, objectUp.floatValue == 5.0f ? -1 : 1, 0);
                         materialEditor.ShaderProperty(objectLeft, objectLeft.displayName);
                         materialEditor.ShaderProperty(objectUp, objectUp.displayName);
+                        materialEditor.ShaderProperty(dissloveSpread, dissloveSpread.displayName);
                         materialEditor.ShaderProperty(dissliveAngle, dissliveAngle.displayName);
                         materialEditor.ShaderProperty(debugDissloveMask, debugDissloveMask.displayName);
                         EditorGUI.indentLevel--;

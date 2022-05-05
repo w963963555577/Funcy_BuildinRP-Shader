@@ -65,8 +65,10 @@ Shader "ZDShader/Build-in RP/PBR Base(SSS)"
         [HDR]_XRayColor ("XRayColor", Color) = (.22, 1.95, 6.0, 1.0)
         
         [Toggle] _DissliveWithDiretion ("From Direction", float) = 0
-        [Enum(X, 0, Y, 1, Z, 2, negative X, 3, negative Y, 4, negative Z, 5)]_ObjectLeft ("Object Left", Float) = 1
-        [Enum(X, 0, Y, 1, Z, 2, negative X, 3, negative Y, 4, negative Z, 5)]_ObjectUp ("Object Up", Float) = 2
+        _DissloveSpread ("Disslove Spread", Float) = 1.0
+        [Enum(X, 0, Y, 1, Z, 2, negative X, 3, negative Y, 4, negative Z, 5)]_ObjectLeft ("Object Left", Float) = 2
+        [Enum(X, 0, Y, 1, Z, 2, negative X, 3, negative Y, 4, negative Z, 5)]_ObjectUp ("Object Up", Float) = 3
+        
         _NegativeDiretionLeft ("__NegativeDiretionLeft", Vector) = (1, 1, 1, 0)
         _NegativeDiretionUp ("__NegativeDiretionLeft", Vector) = (1, 1, 1, 0)
         _DissliveAngle ("Angle", Range(-180, 180)) = 0

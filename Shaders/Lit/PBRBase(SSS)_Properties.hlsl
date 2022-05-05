@@ -29,6 +29,7 @@ half _EffectiveDisslove;
 half _XRayEnabled;
 half4 _XRayColor;
 half _DissliveWithDiretion;
+half _DissloveSpread;
 half _ObjectLeft;
 half _ObjectUp;
 half4 _NegativeDiretionLeft;
@@ -186,7 +187,7 @@ void GetDissloveInput(float4 vertex, float3 normal, half4 _ST, out half4 OSuv1, 
     OSuv2.xy = maskDir.yz * _ST.xy + _ST.zw;
     
     //Disslove Direction
-    OSuv2.zw = rotate2D(half2(trueLeft, trueUp) * float2(1.0, 1.0), 0.0, _DissliveAngle * 0.0174532925194444) * 0.5;
+    OSuv2.zw = rotate2D(half2(trueLeft, trueUp)/_DissloveSpread, 0.0, _DissliveAngle * 0.0174532925194444) * 0.5;
     OSuvMask.xyz = abs(mul(identity, normal));
 }
 
